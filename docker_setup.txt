@@ -1,0 +1,218 @@
+# Dockerfile for Persian Deal Analyzer MCP Server
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV TRANSFORMERS_CACHE=/app/models
+ENV HF_HOME=/app/hf_cache
+ENV PYTHONUNBUFFERED=1
+
+# Create necessary directories
+RUN mkdir -p /app/models /app/hf_cache /app/logs /app/data
+
+# Copy requirements first for better Docker layer caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY mcp_deal_analyzer.py .
+COPY mcp_client_example.py .
+COPY mcp_config.json .
+
+# Create a non-root user
+RUN useradd -m -u 1000 mcp_user && \
+    chown -R mcp_user:mcp_user /app
+USER mcp_user
+
+# Expose port (if needed for HTTP interface)
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import sqlite3; sqlite3.connect('/app/deals_database.db').close()" || exit 1
+
+# Default command
+CMD ["python", "mcp_deal_analyzer.py"]
+
+---
+
+# docker-compose.yml
+version: '3.8'
+
+services:
+  persian-deal-analyzer:
+    build: .
+    container_name: persian_deal_analyzer_mcp
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./logs:/app/logs
+      - ./deals_database.db:/app/deals_database.db
+    environment:
+      - TRANSFORMERS_CACHE=/app/models
+      - HF_HOME=/app/hf_cache
+      - DATABASE_PATH=/app/deals_database.db
+    ports:
+      - "8000:8000"  # Optional: if adding HTTP interface
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+
+  # Optional: PostgreSQL for production
+  postgres:
+    image: postgres:15-alpine
+    container_name: persian_deal_db
+    environment:
+      POSTGRES_DB: deals_db
+      POSTGRES_USER: deals_user
+      POSTGRES_PASSWORD: deals_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+---
+
+# .dockerignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+.env
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.git/
+.gitignore
+README.md
+.pytest_cache/
+.coverage
+.nyc_output/
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# Model cache (will be mounted as volume)
+models/
+hf_cache/
+
+# Database (will be mounted as volume)  
+*.db
+
+---
+
+# Build and run instructions:
+
+# Build the image:
+# docker build -t persian-deal-analyzer .
+
+# Run with docker-compose:
+# docker-compose up -d
+
+# Run standalone:
+# docker run -d \
+#   --name persian-deal-analyzer \
+#   -v $(pwd)/data:/app/data \
+#   -v $(pwd)/models:/app/models \
+#   -v $(pwd)/deals_database.db:/app/deals_database.db \
+#   -p 8000:8000 \
+#   persian-deal-analyzer
+
+# Development mode with live code updates:
+# docker run -it \
+#   --name persian-deal-analyzer-dev \
+#   -v $(pwd):/app \
+#   -v $(pwd)/models:/app/models \
+#   -p 8000:8000 \
+#   persian-deal-analyzer \
+#   bash
+
+---
+
+# Kubernetes Deployment (k8s-deployment.yaml)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: persian-deal-analyzer
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: persian-deal-analyzer
+  template:
+    metadata:
+      labels:
+        app: persian-deal-analyzer
+    spec:
+      containers:
+      - name: persian-deal-analyzer
+        image: persian-deal-analyzer:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: TRANSFORMERS_CACHE
+          value: "/app/models"
+        - name: HF_HOME
+          value: "/app/hf_cache"
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        volumeMounts:
+        - name: models-cache
+          mountPath: /app/models
+        - name: database
+          mountPath: /app/data
+      volumes:
+      - name: models-cache
+        persistentVolumeClaim:
+          claimName: models-pvc
+      - name: database
+        persistentVolumeClaim:
+          claimName: database-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: persian-deal-analyzer-service
+spec:
+  selector:
+    app: persian-deal-analyzer
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
+  type: LoadBalancer

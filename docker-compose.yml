@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  # Persian Deal Analyzer with Gradio Web Interface
+  deal-analyzer-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: persian-deal-analyzer-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=INFO
+      - DEBUG=false
+      - INTERFACE=web
+    volumes:
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - ./hf_cache:/app/hf_cache
+    ports:
+      - "7860:7860"  # Gradio port
+    networks:
+      - deal-analyzer-network
+    depends_on:
+      - redis
+    command: ["python", "main.py", "--web"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Persian Deal Analyzer MCP Server
+  deal-analyzer-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: persian-deal-analyzer-mcp
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+      - LOG_LEVEL=INFO
+      - DEBUG=false
+      - INTERFACE=mcp
+    volumes:
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - ./hf_cache:/app/hf_cache
+    networks:
+      - deal-analyzer-network
+    depends_on:
+      - redis
+    command: ["python", "mcp/server.py"]
+
+  # Updated Nginx configuration
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: persian-deal-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+      - ./static:/var/www/static:ro
+    networks:
+      - deal-analyzer-network
+    depends_on:
+      - deal-analyzer-web
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for caching (existing)
+  redis:
+    image: redis:7-alpine
+    container_name: persian-deal-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - deal-analyzer-network
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Rest of services (postgres, monitoring, etc.) remain the same...
+
+networks:
+  deal-analyzer-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local
