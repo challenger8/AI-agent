@@ -215,7 +215,7 @@ models/models--*/
 *.bin
 *.h5
 *.safetensors
-
+*.lock
 # Logs directory
 logs/
 *.log
