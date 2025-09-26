@@ -1,60 +1,101 @@
 """
-Deal and Deal Activity Models
+Deal, Deal Activity, and CRM Agent Models
+Updated to match actual CSV data structure
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from decimal import Decimal
+import json
 
 @dataclass
 class Deal:
-    """Deal model representing a business deal"""
+    """Deal model representing a business deal from Deals.csv"""
     
-    id: Optional[int] = None
-    title: str = ""
-    description: str = ""
-    amount: Optional[Decimal] = None
-    currency: str = "USD"
-    status: str = "active"  # active, closed_won, closed_lost, pending
-    stage: str = "qualification"  # qualification, proposal, negotiation, closing
-    probability: Optional[float] = None
-    expected_close_date: Optional[datetime] = None
-    actual_close_date: Optional[datetime] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    # Primary fields (using UUID strings)
+    Id: Optional[str] = None
+    Title: str = ""
+    Description: str = ""
+    RegisterTime: Optional[datetime] = None
+    Price: Optional[Decimal] = None
+    Status: str = ""
     
-    # Client information
-    client_name: str = ""
-    client_company: str = ""
-    client_email: str = ""
+    # Pipeline and stage information
+    PipelineStageId: Optional[str] = None
+    PipelineId: Optional[str] = None
     
-    # Additional metadata
-    source: str = ""  # website, referral, cold_call, etc.
-    priority: str = "medium"  # low, medium, high
-    tags: Optional[str] = None  # JSON string of tags
+    # Time tracking fields
+    ChangeToWonTime: Optional[datetime] = None
+    ChangeToLossTime: Optional[datetime] = None
+    LastTrackingTime: Optional[datetime] = None
+    NextTrackingTime: Optional[datetime] = None
+    ExpectedCloseDate: Optional[datetime] = None
+    LastActivityUpdateTime: Optional[datetime] = None
+    LastUpdateTime: Optional[datetime] = None
+    
+    # Deal metrics
+    Probability: Optional[float] = None
+    
+    # Relationships (UUID references)
+    ContactId: Optional[str] = None
+    OwnerId: Optional[str] = None  # References crmteam.id
+    CreatorId: Optional[str] = None  # References crmteam.id
+    LabelId: Optional[str] = None
+    LostReasonId: Optional[str] = None
+    
+    # Additional fields
+    Pin: Optional[bool] = None
+    LostReasonNote: str = ""
+    LostReasonOther: str = ""
+    Feedback: str = ""
+    
+    # Status flags
+    IsIdle: Optional[bool] = None
+    IsRotten: Optional[bool] = None
+    IsRottenInStage: Optional[bool] = None
+    
+    # JSON fields (stored as strings in DB)
+    Fields: Optional[str] = None  # Custom fields JSON
+    Items: Optional[str] = None  # Deal items JSON
+    
+    # Contact info
+    MobilePhone: str = ""
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert deal to dictionary"""
         return {
-            'id': self.id,
-            'title': self.title,
-            'description': self.description,
-            'amount': float(self.amount) if self.amount else None,
-            'currency': self.currency,
-            'status': self.status,
-            'stage': self.stage,
-            'probability': self.probability,
-            'expected_close_date': self.expected_close_date.isoformat() if self.expected_close_date else None,
-            'actual_close_date': self.actual_close_date.isoformat() if self.actual_close_date else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'client_name': self.client_name,
-            'client_company': self.client_company,
-            'client_email': self.client_email,
-            'source': self.source,
-            'priority': self.priority,
-            'tags': self.tags
+            'Id': self.Id,
+            'Title': self.Title,
+            'Description': self.Description,
+            'RegisterTime': self.RegisterTime.isoformat() if self.RegisterTime else None,
+            'Price': float(self.Price) if self.Price else None,
+            'Status': self.Status,
+            'PipelineStageId': self.PipelineStageId,
+            'PipelineId': self.PipelineId,
+            'ChangeToWonTime': self.ChangeToWonTime.isoformat() if self.ChangeToWonTime else None,
+            'ChangeToLossTime': self.ChangeToLossTime.isoformat() if self.ChangeToLossTime else None,
+            'LastTrackingTime': self.LastTrackingTime.isoformat() if self.LastTrackingTime else None,
+            'NextTrackingTime': self.NextTrackingTime.isoformat() if self.NextTrackingTime else None,
+            'ExpectedCloseDate': self.ExpectedCloseDate.isoformat() if self.ExpectedCloseDate else None,
+            'LastActivityUpdateTime': self.LastActivityUpdateTime.isoformat() if self.LastActivityUpdateTime else None,
+            'LastUpdateTime': self.LastUpdateTime.isoformat() if self.LastUpdateTime else None,
+            'Probability': self.Probability,
+            'ContactId': self.ContactId,
+            'OwnerId': self.OwnerId,
+            'CreatorId': self.CreatorId,
+            'LabelId': self.LabelId,
+            'LostReasonId': self.LostReasonId,
+            'Pin': self.Pin,
+            'LostReasonNote': self.LostReasonNote,
+            'LostReasonOther': self.LostReasonOther,
+            'Feedback': self.Feedback,
+            'IsIdle': self.IsIdle,
+            'IsRotten': self.IsRotten,
+            'IsRottenInStage': self.IsRottenInStage,
+            'Fields': self.Fields,
+            'Items': self.Items,
+            'MobilePhone': self.MobilePhone
         }
     
     @classmethod
@@ -64,34 +105,77 @@ class Deal:
         for key, value in data.items():
             if hasattr(deal, key):
                 # Handle datetime fields
-                if key in ['expected_close_date', 'actual_close_date', 'created_at', 'updated_at'] and value:
+                datetime_fields = [
+                    'RegisterTime', 'ChangeToWonTime', 'ChangeToLossTime',
+                    'LastTrackingTime', 'NextTrackingTime', 'ExpectedCloseDate',
+                    'LastActivityUpdateTime', 'LastUpdateTime'
+                ]
+                if key in datetime_fields and value:
                     if isinstance(value, str):
-                        value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                        try:
+                            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                        except:
+                            value = None
                 # Handle decimal fields
-                elif key == 'amount' and value is not None:
+                elif key == 'Price' and value is not None:
                     value = Decimal(str(value))
+                # Handle boolean fields
+                elif key in ['Pin', 'IsIdle', 'IsRotten', 'IsRottenInStage'] and value is not None:
+                    if isinstance(value, str):
+                        value = value.lower() in ['true', '1', 'yes']
                 
                 setattr(deal, key, value)
         return deal
+    
+    def get_fields_as_dict(self) -> Dict[str, Any]:
+        """Parse Fields JSON string to dictionary"""
+        if self.Fields:
+            try:
+                return json.loads(self.Fields)
+            except:
+                return {}
+        return {}
+    
+    def get_items_as_list(self) -> List[Dict[str, Any]]:
+        """Parse Items JSON string to list"""
+        if self.Items:
+            try:
+                return json.loads(self.Items)
+            except:
+                return []
+        return []
+
 
 @dataclass
 class DealActivity:
-    """Deal activity model representing actions/notes on deals"""
+    """Deal activity model representing actions/notes on deals from activities.csv"""
     
-    id: Optional[int] = None
-    deal_id: int = 0
-    activity_type: str = "note"  # note, call, email, meeting, task
+    # Primary fields
+    id: Optional[str] = None  # UUID
     title: str = ""
-    description: str = ""
-    created_at: Optional[datetime] = None
-    created_by: str = ""
+    note: str = ""
+    resultnote: str = ""
+    activitytypeid: Optional[str] = None
     
-    # Activity specific fields
-    duration_minutes: Optional[int] = None  # for calls, meetings
-    outcome: str = ""  # positive, negative, neutral
-    next_action: str = ""
+    # Status flags
+    isprivate: Optional[bool] = None
+    isdone: Optional[bool] = None
+    ispinned: Optional[bool] = None
     
-    # Sentiment analysis will be added to this
+    # Date fields
+    duedate: Optional[datetime] = None
+    finishdate: Optional[datetime] = None
+    donedate: Optional[datetime] = None
+    registerdate: Optional[datetime] = None
+    lastupdatetime: Optional[datetime] = None
+    
+    # Relationships (UUID references)
+    dealid: Optional[str] = None  # References Deal.Id
+    creatorid: Optional[str] = None  # References crmteam.id
+    ownerid: Optional[str] = None  # References crmteam.id
+    updaterid: Optional[str] = None  # References crmteam.id
+    
+    # Sentiment analysis fields (to be added by analysis)
     sentiment_score: Optional[float] = None
     sentiment_label: Optional[str] = None
     
@@ -99,15 +183,22 @@ class DealActivity:
         """Convert activity to dictionary"""
         return {
             'id': self.id,
-            'deal_id': self.deal_id,
-            'activity_type': self.activity_type,
             'title': self.title,
-            'description': self.description,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'created_by': self.created_by,
-            'duration_minutes': self.duration_minutes,
-            'outcome': self.outcome,
-            'next_action': self.next_action,
+            'note': self.note,
+            'resultnote': self.resultnote,
+            'activitytypeid': self.activitytypeid,
+            'isprivate': self.isprivate,
+            'isdone': self.isdone,
+            'ispinned': self.ispinned,
+            'duedate': self.duedate.isoformat() if self.duedate else None,
+            'finishdate': self.finishdate.isoformat() if self.finishdate else None,
+            'donedate': self.donedate.isoformat() if self.donedate else None,
+            'registerdate': self.registerdate.isoformat() if self.registerdate else None,
+            'lastupdatetime': self.lastupdatetime.isoformat() if self.lastupdatetime else None,
+            'dealid': self.dealid,
+            'creatorid': self.creatorid,
+            'ownerid': self.ownerid,
+            'updaterid': self.updaterid,
             'sentiment_score': self.sentiment_score,
             'sentiment_label': self.sentiment_label
         }
@@ -119,9 +210,82 @@ class DealActivity:
         for key, value in data.items():
             if hasattr(activity, key):
                 # Handle datetime fields
-                if key == 'created_at' and value:
+                datetime_fields = [
+                    'duedate', 'finishdate', 'donedate', 
+                    'registerdate', 'lastupdatetime'
+                ]
+                if key in datetime_fields and value:
                     if isinstance(value, str):
-                        value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                        try:
+                            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+                        except:
+                            value = None
+                # Handle boolean fields
+                elif key in ['isprivate', 'isdone', 'ispinned'] and value is not None:
+                    if isinstance(value, str):
+                        value = value.lower() in ['true', '1', 'yes']
                 
                 setattr(activity, key, value)
         return activity
+    
+    def get_combined_text(self) -> str:
+        """Get combined text for sentiment analysis"""
+        texts = []
+        if self.title:
+            texts.append(self.title)
+        if self.note:
+            texts.append(self.note)
+        if self.resultnote:
+            texts.append(self.resultnote)
+        return " ".join(texts)
+
+
+@dataclass
+class CRMAgent:
+    """CRM Agent/User model from crmteam.csv"""
+    
+    id: Optional[str] = None  # UUID
+    groupowner: str = ""
+    ownername: str = ""
+    adminid: Optional[str] = None
+    role: str = ""
+    phone: str = ""
+    mobilephone: str = ""
+    personalid: str = ""
+    groupphone: str = ""
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert agent to dictionary"""
+        return {
+            'id': self.id,
+            'groupowner': self.groupowner,
+            'ownername': self.ownername,
+            'adminid': self.adminid,
+            'role': self.role,
+            'phone': self.phone,
+            'mobilephone': self.mobilephone,
+            'personalid': self.personalid,
+            'groupphone': self.groupphone
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'CRMAgent':
+        """Create agent from dictionary"""
+        agent = cls()
+        for key, value in data.items():
+            if hasattr(agent, key):
+                setattr(agent, key, value)
+        return agent
+    
+    def get_display_name(self) -> str:
+        """Get display name for the agent"""
+        if self.ownername:
+            return self.ownername
+        elif self.groupowner:
+            return self.groupowner
+        else:
+            return self.id or "Unknown"
+    
+    def get_contact_number(self) -> str:
+        """Get primary contact number"""
+        return self.mobilephone or self.phone or self.groupphone or ""

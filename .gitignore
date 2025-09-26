@@ -25,7 +25,8 @@ MANIFEST
 # PyInstaller
 *.manifest
 *.spec
-
+*.csv
+*.ipynb
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
