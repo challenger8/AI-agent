@@ -50,6 +50,7 @@ class SentimentService(BaseService):
             
             self.model_loaded = True
             self.logger.info("Persian sentiment model loaded successfully")
+            print(SentimentSettings.MODEL_NAME)
             return True
             
         except Exception as e:

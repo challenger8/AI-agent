@@ -27,8 +27,20 @@ class MCPSettings:
 
 # Sentiment Analysis settings
 class SentimentSettings:
-    MODEL_NAME = "HooshvareLab/bert-fa-base-uncased-sentiment-digikala"
-    MAX_TEXT_LENGTH = 512
+
+    # USE_DEEPSEEK_API = os.getenv('USE_DEEPSEEK_API', 'false').lower() == 'true'
+    API_KEY = os.getenv('GEMINI_API_KEY')  # Load from env
+    HF_TOKEN = os.getenv('HF_TOKEN')
+    MODEL_NAME = "mistralai/Mixtral-8x7B-Instruct-v0.1"# if USE_DEEPSEEK_API else "HooshvareLab/bert-fa-base-uncased-sentiment-digikala"
+    
+    # For DeepSeek-V3 specifics
+    DEEPSEEK_PROMPT_TEMPLATE = """
+    Analyze the sentiment of this Persian text as one of: مثبت (positive), خنثی (neutral), or منفی (negative).
+    Text: {text}
+    Sentiment: 
+    """
+    
+    MAX_TEXT_LENGTH = 512# if not USE_DEEPSEEK_API else 8192  # DeepSeek supports longer contexts
     CACHE_SIZE = 1000
     MIN_TEXT_LENGTH = 5
     
