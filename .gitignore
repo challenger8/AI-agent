@@ -230,7 +230,7 @@ mcp_configuration.json
 
 # Debug and test files
 debug_*.py
-test_*.py
+# test_*.py
 
 # Nginx configuration (environment specific)
 nginx/
