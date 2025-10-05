@@ -7,6 +7,7 @@ Advanced analytics and health metrics service
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from collections import defaultdict
+from services.cache_service import get_cache_service, CacheService
 
 from services.base_service import BaseService
 from services.deal_service import DealService
@@ -21,7 +22,7 @@ class AnalyticsService(BaseService):
         super().__init__(repositories)
         self.deal_service = DealService(repositories)
         self.sentiment_service = sentiment_service
-    
+        self.cache_service = get_cache_service()
     def analyze_deal_comprehensive(self, deal_id: str) -> Dict[str, Any]:
         """
         Comprehensive deal analysis including activities and sentiment
@@ -68,9 +69,21 @@ class AnalyticsService(BaseService):
             timeline = self._create_activity_timeline(activities)
             
             result = {
+            
             "deal": deal,
             "deal_id": deal_id,
-            # ... all your other fields ...
+            "activities": {
+                    "total_count": len(activities),
+                    "timeline": timeline,
+                    "recent_activities": [a.to_dict() for a in activities[:5]] if activities else []
+                },
+            "sentiment_analysis": sentiment_summary,
+            "health_score": health_score,
+            "health_category": self._get_health_category(health_score),
+            "risk_indicators": risk_indicators,
+            "insights": insights,
+            "recommendations": self._generate_recommendations(deal, health_score, risk_indicators),
+            "analyzed_at": datetime.now().isoformat(),
             "analyzed_at": datetime.now().isoformat()
              }
         
