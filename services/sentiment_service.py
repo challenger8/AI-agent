@@ -7,6 +7,7 @@ Sentiment analysis service for Persian text
 import asyncio
 from typing import Dict, List, Any, Optional
 from collections import defaultdict
+from services.cache_service import get_cache_service, CacheService
 
 from services.base_service import BaseService
 from config.settings import SentimentSettings, FeatureFlags, get_sentiment_available
@@ -21,7 +22,7 @@ class SentimentService(BaseService):
         self.model_loaded = False
         self.sentiment_cache = {}
         self.available = get_sentiment_available()
-    
+        self.cache_service = get_cache_service()
     async def initialize(self) -> bool:
         """
         Initialize sentiment analysis model
@@ -59,13 +60,7 @@ class SentimentService(BaseService):
     
     def analyze_text(self, text: str) -> Dict[str, Any]:
         """
-        Analyze sentiment of Persian text
-        
-        Args:
-            text: Text to analyze
-            
-        Returns:
-            Dictionary with sentiment analysis results
+        Analyze sentiment of Persian text with Redis caching
         """
         if not self.available or not self.model_loaded or not self.pipeline:
             return {
@@ -82,26 +77,27 @@ class SentimentService(BaseService):
                 "error": "Text too short"
             }
         
-        # Check cache first
-        cache_key = hash(text.strip())
-        cached_result = self._get_from_cache(f"sentiment_{cache_key}")
+        # Generate cache key
+        text_hash = self.cache_service.hash_text(text.strip())
+        cache_key = self.cache_service.generate_key("sentiment", text_hash)
+        
+        # Try to get from Redis cache
+        cached_result = self.cache_service.get(cache_key)
         if cached_result:
-            self.logger.debug("Retrieved sentiment from cache")
+            self.logger.debug(f"Sentiment cache HIT for text hash: {text_hash[:8]}")
             return cached_result
         
+        # Not in cache - analyze
         try:
-            # Analyze sentiment
             truncated_text = text[:SentimentSettings.MAX_TEXT_LENGTH]
             results = self.pipeline(truncated_text)
             
-            # Process results
             if results and len(results) > 0:
                 if isinstance(results[0], list):
                     best_result = max(results[0], key=lambda x: x['score'])
                 else:
                     best_result = results[0]
                 
-                # Map to Persian labels
                 sentiment = SentimentSettings.LABEL_MAPPING.get(
                     best_result['label'], 
                     best_result['label']
@@ -114,8 +110,10 @@ class SentimentService(BaseService):
                     "text_preview": text[:50] + "..." if len(text) > 50 else text
                 }
                 
-                # Cache result
-                self._set_cache(f"sentiment_{cache_key}", result)
+                # Cache result for 1 hour (3600 seconds)
+                self.cache_service.set(cache_key, result, ttl=3600)
+                self.logger.debug(f"Sentiment cached for text hash: {text_hash[:8]}")
+                
                 return result
             
         except Exception as e:
@@ -283,3 +281,15 @@ class SentimentService(BaseService):
         self._clear_cache()
         self.sentiment_cache.clear()
         self.logger.info("Sentiment cache cleared")
+
+    def clear_sentiment_cache(self):
+        """Clear all sentiment caches"""
+        # Clear in-memory cache
+        self._clear_cache()
+        self.sentiment_cache.clear()
+        
+        # Clear Redis cache
+        deleted = self.cache_service.delete_pattern("sentiment:*")
+        self.logger.info(f"Cleared sentiment cache: {deleted} keys deleted")
+        
+        return deleted

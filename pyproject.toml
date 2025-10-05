@@ -77,5 +77,3 @@ monitoring = [
 persian-deal-analyzer = "main:main"
 pda-web = "gradio_main:main" 
 pda-mcp = "mcp.server:main"
-
----

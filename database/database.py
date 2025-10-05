@@ -78,11 +78,11 @@ class DatabaseManager:
                         SELECT table_name 
                         FROM information_schema.tables 
                         WHERE table_schema = 'public' 
-                        AND table_name IN ('deals', 'deal_activities', 'crmteam', 'sentiment_analysis')
+                        AND table_name IN ('deals', 'deal_activities', 'crm_agents', 'sentiment_analysis')
                     """)
-                    
+
                     existing_tables = [row['table_name'] for row in cursor.fetchall()]
-                    required_tables = ['deals', 'deal_activities', 'crmteam', 'sentiment_analysis']
+                    required_tables = ['deals', 'deal_activities', 'crm_agents', 'sentiment_analysis']
                     missing_tables = set(required_tables) - set(existing_tables)
                     
                     if missing_tables:
@@ -317,7 +317,7 @@ class DatabaseManager:
             stats = {}
             
             # Get table row counts - Updated table names to match schema
-            tables = ['deals', 'deal_activities', 'crmteam', 'sentiment_analysis']
+            tables = ['deals', 'deal_activities', 'crm_agents', 'sentiment_analysis'] 
             for table in tables:
                 if self.check_table_exists(table):
                     count_query = f'SELECT COUNT(*) as count FROM "{table}";'

@@ -26,7 +26,7 @@ class DealService(BaseService):
         """
         try:
             with self.repositories as uow:
-                deal = uow.deals.get_by_id(deal_id)
+                deal = uow.deals.get_deal_by_id(deal_id)
                 return deal.to_dict() if deal else None
         except Exception as e:
             self.logger.error(f"Error getting deal {deal_id}: {e}")
@@ -44,7 +44,7 @@ class DealService(BaseService):
         """
         try:
             with self.repositories as uow:
-                deals = uow.deals.get_by_status(status)
+                deals = uow.deals.get_deals_by_status(status)
                 return [deal.to_dict() for deal in deals]
         except Exception as e:
             self.logger.error(f"Error getting deals by status {status}: {e}")
@@ -59,7 +59,7 @@ class DealService(BaseService):
         """
         try:
             with self.repositories as uow:
-                deals = uow.deals.get_all()
+                deals = uow.deals.get_all_deals()
                 return [deal.to_dict() for deal in deals]
         except Exception as e:
             self.logger.error(f"Error getting all deals: {e}")

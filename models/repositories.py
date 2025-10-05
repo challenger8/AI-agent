@@ -486,10 +486,21 @@ class RepositoryManager:
     """Manager for all repositories"""
     
     def __init__(self, db_manager):
+        self.db_manager = db_manager
         self.deals = DealRepository(db_manager)
         self.activities = DealActivityRepository(db_manager)
         self.agents = CRMAgentRepository(db_manager)
         self.sentiment = SentimentRepository(db_manager)
+    
+    # ADD THESE TWO METHODS:
+    def __enter__(self):
+        """Enter context manager"""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit context manager"""
+        # Don't close database connection here - it's managed elsewhere
+        return False
     
     def get_deal_with_details(self, deal_id: str) -> Dict[str, Any]:
         """Get deal with all related information"""
