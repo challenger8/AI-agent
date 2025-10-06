@@ -31,7 +31,7 @@ class SentimentSettings:
     # USE_DEEPSEEK_API = os.getenv('USE_DEEPSEEK_API', 'false').lower() == 'true'
     API_KEY = os.getenv('GEMINI_API_KEY')  # Load from env
     HF_TOKEN = os.getenv('HF_TOKEN')
-    MODEL_NAME = "mistralai/Mixtral-8x7B-Instruct-v0.1"# if USE_DEEPSEEK_API else "HooshvareLab/bert-fa-base-uncased-sentiment-digikala"
+    MODEL_NAME = "Qwen/Qwen2-0.5B-Instruct"# if USE_DEEPSEEK_API else "HooshvareLab/bert-fa-base-uncased-sentiment-digikala"
     
     # For DeepSeek-V3 specifics
     DEEPSEEK_PROMPT_TEMPLATE = """
@@ -50,8 +50,10 @@ class SentimentSettings:
         'LABEL_1': 'خنثی', 
         'LABEL_2': 'مثبت',
         'NEGATIVE': 'منفی',
+        'negative': 'منفی',
         'NEUTRAL': 'خنثی',
-        'POSITIVE': 'مثبت'
+        'POSITIVE': 'مثبت',
+        'positive': 'مثبت'
     }
 
 # Analysis settings

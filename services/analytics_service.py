@@ -315,9 +315,9 @@ class AnalyticsService(BaseService):
         if sentiment_summary.get("sentiment_available"):
             dominant = sentiment_summary.get("dominant_sentiment", "خنثی")
             
-            if dominant == "مثبت":
+            if dominant == "positive":
                 score += 15
-            elif dominant == "منفی":
+            elif dominant == "negative":
                 score -= 15
             # Neutral = no change
         
@@ -327,9 +327,9 @@ class AnalyticsService(BaseService):
             deal_age_days = (now - self._parse_datetime(register_time)).days
             
             if deal_age_days > AnalysisSettings.AGING_DEAL_DAYS:  # 60 days
-                score -= 10
-            elif deal_age_days > 90:
                 score -= 20
+            elif deal_age_days > 90:
+                score -= 30
         
         # Factor 6: Deal Status
         status = deal.get('status', '').lower()

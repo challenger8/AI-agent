@@ -7,7 +7,6 @@ Tool handlers for MCP server
 import json
 from datetime import datetime
 from typing import Dict, Any, List
-
 from mcp.types import Tool, TextContent
 from config.settings import get_sentiment_available
 from mcp_spec.schemas.tool_schemas import get_tool_schemas

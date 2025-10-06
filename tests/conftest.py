@@ -84,14 +84,26 @@ def analytics_service(test_repositories, sentiment_service):
 
 @pytest.fixture(scope="function")
 def mock_sentiment_service():
-    """Mock sentiment service for unit tests"""
     mock_service = Mock()
     mock_service.model_loaded = True
     mock_service.available = True
     mock_service.analyze_text = Mock(return_value={
-        "sentiment": "مثبت",
+        "sentiment": "positive",  # Use English
         "confidence": 0.85,
         "text_preview": "Sample text..."
+    })
+    mock_service.analyze_batch = Mock(return_value=[
+        {"sentiment": "positive", "confidence": 0.85},
+        {"sentiment": "negative", "confidence": 0.75},
+        {"sentiment": "neutral", "confidence": 0.65}
+    ])
+    mock_service.analyze_activities_sentiment = Mock(return_value={
+        "total_activities": 3,
+        "analyzed_activities": 3,
+        "sentiment_distribution": {}
+    })
+    mock_service.get_sentiment_trends = Mock(return_value={
+        "trends": []
     })
     return mock_service
 

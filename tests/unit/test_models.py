@@ -200,7 +200,7 @@ class TestSentimentAnalysisModel:
         """Test creating a SentimentAnalysis instance"""
         assert sample_sentiment is not None
         assert sample_sentiment.text is not None
-        assert sample_sentiment.label == 'مثبت'
+        assert sample_sentiment.label == 'positive'
     
     def test_sentiment_to_dict(self, sample_sentiment):
         """Test converting SentimentAnalysis to dictionary"""
@@ -234,7 +234,7 @@ class TestSentimentAnalysisModel:
         
         sentiment = SentimentAnalysis(
             text="Test",
-            label='منفی',
+            label='negative',
             score=0.2
         )
         

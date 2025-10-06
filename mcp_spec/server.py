@@ -7,7 +7,12 @@ Clean, modular, and extensible architecture
 
 import asyncio
 from typing import Optional
-
+from mcp_spec.handlers.tool_handlers import ToolHandlers 
+from mcp_spec.handlers.tool_handlers import ToolHandlers
+from mcp_spec.handlers.resource_handlers import ResourceHandlers
+from database.database import create_database_manager
+from utils.logging_config import setup_logging, get_logger
+import logging
 # MCP imports - Fixed to avoid conflicts with local module
 try:
     # Import from the actual MCP package with explicit paths
@@ -26,16 +31,9 @@ try:
     project_root = Path(__file__).parent.parent
     sys.path.insert(0, str(project_root))
     
-    # Import database functions
-    from database.database import create_database_manager
-    
-    # Try to import models - if it doesn't exist, create a placeholder
-    try:
-        from database.models import create_repositories
-    except ImportError:
-        # Create a placeholder function if models.py doesn't exist
-        def create_repositories(db_manager):
-            return {"placeholder": "repositories not implemented yet"}
+ 
+    def create_repositories(db_manager):
+        return {"placeholder": "repositories not implemented yet"}
             
 except ImportError as e:
     raise ImportError(f"Database modules required: {e}") from e
@@ -52,10 +50,7 @@ except ImportError:
     def get_sentiment_available():
         return False
 
-try:
-    from utils.logging_config import setup_logging, get_logger
-except ImportError:
-    import logging
+
     def setup_logging():
         logging.basicConfig(level=logging.INFO)
         return logging.getLogger("MCP")
@@ -92,9 +87,7 @@ except ImportError:
         def __init__(self, repositories=None, sentiment_service=None):
             pass
 
-try:
-    from handlers.tool_handlers import ToolHandlers
-except ImportError:
+
     class ToolHandlers:
         def __init__(self, analytics_service=None, sentiment_service=None):
             pass
