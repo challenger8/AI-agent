@@ -421,13 +421,13 @@ class SentimentRepository:
         """Save sentiment analysis result"""
         try:
             query = """
-            INSERT INTO sentiment_analysis (text, language, label, score, polarity, 
-                                          subjectivity, model_name, model_version, 
-                                          processed_at, deal_id, activity_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO sentiment_analysis (id, text, language, label, score, polarity, 
+                                        subjectivity, model_name, model_version, 
+                                        processed_at, deal_id, activity_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             params = (
-                sentiment.text, sentiment.language, sentiment.label, sentiment.score,
+                sentiment.id,sentiment.text, sentiment.language, sentiment.label, sentiment.score,
                 sentiment.polarity, sentiment.subjectivity, sentiment.model_name,
                 sentiment.model_version, sentiment.processed_at or datetime.now(),
                 sentiment.deal_id, sentiment.activity_id

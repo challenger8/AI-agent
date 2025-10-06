@@ -3,6 +3,7 @@ tests/conftest.py
 -----------------
 Shared pytest fixtures for all tests
 """
+import uuid
 
 import pytest
 import sys
@@ -103,7 +104,7 @@ def mock_sentiment_service():
 def sample_deal_dict():
     """Sample deal data as dictionary"""
     return {
-        'Id': 'test-deal-001',
+        'Id': str(uuid.uuid4()),
         'Title': 'Test Deal',
         'Description': 'This is a test deal',
         'RegisterTime': datetime.now() - timedelta(days=30),
@@ -151,7 +152,7 @@ def sample_deals_list():
     
     for i in range(10):
         deal_dict = {
-            'Id': f'deal-{i:03d}',
+            'Id': str(uuid.uuid4()),
             'Title': f'معامله تست {i}',
             'Description': f'توضیحات معامله شماره {i}',
             'RegisterTime': datetime.now() - timedelta(days=60-i*5),
@@ -174,10 +175,10 @@ def sample_deals_list():
 # ============================================================================
 
 @pytest.fixture
-def sample_activity_dict():
+def sample_activity_dict(sample_deal):
     """Sample activity data as dictionary"""
     return {
-        'id': 'activity-001',
+        'id': str(uuid.uuid4()),
         'title': 'تماس تلفنی',
         'note': 'تماس با مشتری برای پیگیری پیشنهاد',
         'resultnote': 'مشتری علاقه‌مند است',
@@ -190,7 +191,7 @@ def sample_activity_dict():
         'donedate': datetime.now(),
         'registerdate': datetime.now() - timedelta(days=2),
         'lastupdatetime': datetime.now(),
-        'dealid': 'test-deal-001',
+        'dealid': sample_deal.Id,  # ✅ Now sample_deal is the actual Deal object
         'creatorid': 'user-001',
         'ownerid': 'user-001',
         'updaterid': 'user-001',
@@ -214,7 +215,7 @@ def sample_activities_list(sample_deal):
     
     for i in range(15):
         activity_dict = {
-            'id': f'activity-{i:03d}',
+            'id': str(uuid.uuid4()),
             'title': f'فعالیت {i}',
             'note': f'یادداشت فعالیت شماره {i}',
             'resultnote': f'نتیجه: موفق' if i % 2 == 0 else 'نتیجه: نیاز به پیگیری',
@@ -243,7 +244,7 @@ def sample_activities_list(sample_deal):
 def sample_agent_dict():
     """Sample CRM agent data as dictionary"""
     return {
-        'id': 'agent-001',
+        'id': str(uuid.uuid4()),
         'groupowner': 'تیم فروش',
         'ownername': 'علی احمدی',
         'adminid': 'admin-001',
@@ -292,10 +293,10 @@ def sample_agents_list():
 def sample_sentiment_dict():
     """Sample sentiment analysis data"""
     return {
-        'id': 1,
+        'id': str(uuid.uuid4()),
         'text': 'مشتری بسیار راضی بود و قصد خرید دارد',
         'language': 'fa',
-        'label': 'مثبت',
+        'label': 'positive',
         'score': 0.92,
         'polarity': 0.8,
         'subjectivity': 0.6,
