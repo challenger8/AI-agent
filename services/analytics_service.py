@@ -283,7 +283,7 @@ class AnalyticsService(BaseService):
             elif days_since_activity <= 30:
                 score += 5
             else:
-                score -= 15  # Stale activity penalty
+                score -= 25  # Stale activity penalty
         
         # Factor 2: Activity Frequency (max +10 points)
         activity_count = len(activities)
@@ -315,21 +315,21 @@ class AnalyticsService(BaseService):
         if sentiment_summary.get("sentiment_available"):
             dominant = sentiment_summary.get("dominant_sentiment", "خنثی")
             
-            if dominant == "positive":
+            if dominant in ["مثبت", "positive"]:
                 score += 15
-            elif dominant == "negative":
-                score -= 15
+            elif dominant in  ["منفی", "negative"]:
+                score -= 25
             # Neutral = no change
         
         # Factor 5: Deal Age (penalty for old deals)
-        register_time = deal.get('register_time')
+        register_time = deal.get('RegisterTime')
         if register_time:
             deal_age_days = (now - self._parse_datetime(register_time)).days
             
-            if deal_age_days > AnalysisSettings.AGING_DEAL_DAYS:  # 60 days
+            if deal_age_days > 90:
+                score -= 40
+            elif deal_age_days > AnalysisSettings.AGING_DEAL_DAYS:  # 60 days
                 score -= 20
-            elif deal_age_days > 90:
-                score -= 30
         
         # Factor 6: Deal Status
         status = deal.get('status', '').lower()
@@ -383,7 +383,7 @@ class AnalyticsService(BaseService):
             })
         
         # Risk 3: Aging Deal
-        register_time = deal.get('register_time')
+        register_time = deal.get('RegisterTime')
         if register_time:
             deal_age_days = (now - self._parse_datetime(register_time)).days
             
@@ -447,10 +447,10 @@ class AnalyticsService(BaseService):
         if sentiment_summary.get("sentiment_available"):
             dominant = sentiment_summary.get("dominant_sentiment", "خنثی")
             
-            if dominant == "مثبت":
+            if dominant in ["مثبت", "positive"]:
                 insights.append("😊 احساسات مثبت در تعاملات")
                 insights.append("💡 فرصت خوب برای پیشنهاد بعدی")
-            elif dominant == "منفی":
+            elif dominant in ["منفی", "negative"]:
                 insights.append("😟 احساسات منفی در تعاملات")
                 insights.append("💡 شناسایی و رفع نگرانی‌های مشتری")
         

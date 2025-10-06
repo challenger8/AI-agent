@@ -140,7 +140,7 @@ class DealService(BaseService):
             # Deal creation
             if deal.get('RegisterTime') or deal.get('register_time'):
                 timeline.append({
-                    "date": deal['created_date'],
+                    "date": deal.get('RegisterTime') or deal.get('register_time'),
                     "type": "deal_created",
                     "description": f"Deal created: {deal.get('customer_name', 'Unknown customer')}",
                     "milestone": True
@@ -151,9 +151,9 @@ class DealService(BaseService):
                 timeline.append({
                     "date": activity.registerdate.isoformat() if activity.registerdate else None,
                     "type": "activity",
-                    "activity_type": activity.activity_type.value,
-                    "description": activity.activity_description,
-                    "created_by": activity.created_by,
+                    "activity_type": activity.activitytypeid,
+                    "description": activity.note or activity.resultnote or "",
+                    "created_by": activity.creatorid or "",
                     "milestone": False
                 })
             
