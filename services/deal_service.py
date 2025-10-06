@@ -133,7 +133,7 @@ class DealService(BaseService):
                 return {"error": f"Deal {deal_id} not found"}
             
             with self.repositories as uow:
-                activities = uow.activities.get_by_deal_id(deal_id)
+                activities = uow.activities.get_activities_by_deal(deal_id)
                 
             timeline = []
             

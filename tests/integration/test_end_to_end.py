@@ -6,6 +6,7 @@ End-to-end integration tests for complete workflows
 
 import pytest
 import asyncio
+pytest_plugins = ('pytest_asyncio',)
 
 
 @pytest.mark.asyncio

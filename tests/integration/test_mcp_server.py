@@ -6,6 +6,7 @@ Integration tests for MCP Server
 
 import pytest
 import asyncio
+pytest_plugins = ('pytest_asyncio',)
 
 
 @pytest.mark.asyncio
