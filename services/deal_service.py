@@ -138,7 +138,7 @@ class DealService(BaseService):
             timeline = []
             
             # Deal creation
-            if deal.get('created_date'):
+            if deal.get('RegisterTime') or deal.get('register_time'):
                 timeline.append({
                     "date": deal['created_date'],
                     "type": "deal_created",
@@ -149,7 +149,7 @@ class DealService(BaseService):
             # Activities
             for activity in activities:
                 timeline.append({
-                    "date": activity.created_date.isoformat() if activity.created_date else None,
+                    "date": activity.registerdate.isoformat() if activity.registerdate else None,
                     "type": "activity",
                     "activity_type": activity.activity_type.value,
                     "description": activity.activity_description,
@@ -183,8 +183,13 @@ class DealService(BaseService):
     def _calculate_deal_duration(self, deal: Dict[str, Any]) -> Optional[int]:
         """Calculate deal duration in days"""
         try:
-            created_date = deal.get('created_date')
-            close_date = deal.get('close_date')
+            if hasattr(deal, 'RegisterTime'):
+                created_date = deal.RegisterTime
+                close_date = deal.LastUpdateTime or deal.ChangeToWonTime or deal.ChangeToLossTime
+            else:
+                created_date = deal.get('RegisterTime') or deal.get('register_time')
+                close_date = (deal.get('LastUpdateTime') or deal.get('last_update_time') or 
+                            deal.get('ChangeToWonTime') or deal.get('change_to_won_time'))
             
             if not created_date:
                 return None
