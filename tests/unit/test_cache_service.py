@@ -52,7 +52,24 @@ class TestCacheServiceBasic:
 
 class TestCacheOperations:
     """Test cache set/get/delete operations"""
-    
+    def test_delete_key(self):
+        """Test deleting a key"""
+        cache = CacheService(enabled=True)
+        
+        if cache.is_available():
+            # Set a test key
+            cache.set('test_delete', 'value')
+            
+            # Delete the key
+            success = cache.delete('test_delete')
+            
+            assert success is True
+            
+            # Verify the key is gone
+            value = cache.get('test_delete')
+            assert value is None
+        else:
+            pytest.skip("Redis not available")
     def test_set_and_get(self):
         """Test setting and getting a value"""
         cache = CacheService(enabled=True)
@@ -138,7 +155,121 @@ class TestCacheOperations:
         else:
             pytest.skip("Redis not available")
 
-
+class TestCacheKeyGeneration:
+    """Test cache key generation utilities"""
+    
+    def test_generate_key(self):
+        """Test generating cache keys from parts"""
+        # Test with multiple parts
+        key = CacheService.generate_key('sentiment', 'abc123', 'v1')
+        assert key == 'sentiment:abc123:v1'
+        
+        # Test with two parts
+        key = CacheService.generate_key('analytics', 'deal-456')
+        assert key == 'analytics:deal-456'
+        
+        # Test with single part
+        key = CacheService.generate_key('simple')
+        assert key == 'simple'
+        
+        # Test that keys are strings
+        key = CacheService.generate_key('test', '123')
+        assert isinstance(key, str)
+        
+        # Test with numbers (converted to strings)
+        key = CacheService.generate_key('count', 42)
+        assert 'count' in key
+        assert '42' in key
+    
+    def test_hash_text(self):
+        """Test text hashing for consistent cache keys"""
+        # Test consistency - same text produces same hash
+        text = "این یک متن فارسی برای تست است"
+        hash1 = CacheService.hash_text(text)
+        hash2 = CacheService.hash_text(text)
+        
+        assert hash1 == hash2
+        assert isinstance(hash1, str)
+        assert len(hash1) > 0
+        
+        # Test different texts produce different hashes
+        text1 = "متن اول"
+        text2 = "متن دوم"
+        hash1 = CacheService.hash_text(text1)
+        hash2 = CacheService.hash_text(text2)
+        
+        assert hash1 != hash2
+        
+        # Test empty string (edge case)
+        hash_empty = CacheService.hash_text("")
+        assert hash_empty is not None
+        assert isinstance(hash_empty, str)
+        
+        # Test long text
+        long_text = "متن طولانی " * 1000
+        hash_long = CacheService.hash_text(long_text)
+        assert hash_long is not None
+        assert isinstance(hash_long, str)
+        
+        # Test English text
+        english_text = "This is a test sentence"
+        hash_english = CacheService.hash_text(english_text)
+        assert hash_english is not None
+        assert len(hash_english) > 0
+class TestCacheBulkOperations:
+    """Test bulk cache operations"""
+    
+    def test_delete_pattern(self):
+        """Test deleting keys by pattern"""
+        cache = CacheService(enabled=True)
+        
+        if cache.is_available():
+            # Set up multiple keys with different prefixes
+            cache.set('sentiment:abc', {'test': 1})
+            cache.set('sentiment:xyz', {'test': 2})
+            cache.set('sentiment:123', {'test': 3})
+            cache.set('analytics:456', {'test': 4})
+            
+            # Delete all sentiment keys
+            count = cache.delete_pattern('sentiment:*')
+            
+            # Should have deleted at least 3 keys
+            assert count >= 3
+            
+            # Verify sentiment keys are gone
+            assert cache.get('sentiment:abc') is None
+            assert cache.get('sentiment:xyz') is None
+            assert cache.get('sentiment:123') is None
+            
+            # Verify analytics key still exists
+            analytics_value = cache.get('analytics:456')
+            assert analytics_value is not None
+            assert analytics_value['test'] == 4
+        else:
+            pytest.skip("Redis not available")
+    
+    def test_clear_all(self):
+        """Test clearing entire cache"""
+        cache = CacheService(enabled=True)
+        
+        if cache.is_available():
+            # Set up several test keys
+            cache.set('test_key_1', 'value1')
+            cache.set('test_key_2', 'value2')
+            cache.set('test_key_3', 'value3')
+            
+            # Clear all cache
+            result = cache.clear_all()
+            
+            # Should return success
+            assert result is True
+            
+            # Verify all keys are gone
+            assert cache.get('test_key_1') is None
+            assert cache.get('test_key_2') is None
+            assert cache.get('test_key_3') is None
+        else:
+            pytest.skip("Redis not available")
 class TestCacheDataTypes:
     """Test caching different data types"""
     

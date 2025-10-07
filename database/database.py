@@ -459,7 +459,16 @@ class DatabaseManager:
         except Exception as e:
             self.logger.error(f"Failed to create database backup: {e}")
             raise
-    
+    def close(self):
+        if self.connection_pool:
+            try:
+                self.connection_pool.closeall()
+                self.logger.info("Database connection pool closed")
+            except Exception as e:
+                # Pool already closed or error closing
+                self.logger.debug(f"Connection pool already closed or error: {e}")
+            finally:
+                self.connection_pool = None  # Prevent multiple close attempts
     def close(self):
         """Close all connections in the pool"""
         if self.connection_pool:
@@ -517,6 +526,7 @@ def test_database_connection():
     finally:
         if 'db' in locals():
             db.close()
+    
 
 
 if __name__ == "__main__":

@@ -223,7 +223,7 @@ logs/
 
 # Large PDF files
 *.pdf
-
+*.sh
 # Configuration files with sensitive data
 claude_integration.json
 mcp_configuration.json

@@ -1,999 +1,1351 @@
-# Persian Deal Analyzer - Project Overview
+# 🗺️ Implementation Roadmap: RAG + STT + MoE
 
-## 📋 Executive Summary
+## 📊 Overview
 
-A comprehensive MCP (Model Context Protocol) server for Persian CRM deal analysis with sentiment insights, featuring both API access and a Gradio web interface. The system provides automated sentiment analysis on Persian text, deal activity tracking, and advanced analytics for CRM pipeline management.
-
-**Current Status:** 🟡 Development/Pre-Production (Core functionality ~70% complete)
-
----
-
-## 🏗️ Architecture Overview
-
-### High-Level Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Client Layer                          │
-├─────────────────────────────────────────────────────────┤
-│  MCP Protocol Clients  │  Gradio Web Interface          │
-│  (Claude Desktop, etc) │  (Browser-based UI)            │
-└────────────┬────────────┴──────────────┬─────────────────┘
-             │                           │
-             ▼                           ▼
-┌─────────────────────────────────────────────────────────┐
-│                    API Layer                             │
-├─────────────────────────────────────────────────────────┤
-│  MCP Server (mcp_spec/server.py)                        │
-│  - Tool Handlers      - Resource Handlers                │
-│  - Protocol Management                                   │
-└────────────┬────────────────────────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────────────────────────┐
-│                  Services Layer                          │
-├─────────────────────────────────────────────────────────┤
-│  Deal Service  │  Sentiment Service  │  Analytics Service│
-│  - CRUD ops    │  - Persian NLP      │  - Health Scoring │
-│  - Timelines   │  - HF Transformers  │  - Insights Gen.  │
-└────────────┬────────────────────────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────────────────────────┐
-│                Repository Layer                          │
-├─────────────────────────────────────────────────────────┤
-│  Deal Repo  │  Activity Repo  │  Agent Repo  │ Sentiment│
-└────────────┬────────────────────────────────────────────┘
-             │
-             ▼
-┌─────────────────────────────────────────────────────────┐
-│                  Data Layer                              │
-├─────────────────────────────────────────────────────────┤
-│  PostgreSQL Database  │  Redis Cache  │  File Storage    │
-└─────────────────────────────────────────────────────────┘
-```
+**Total Estimated Time:** 15-21 days (3-4 weeks)  
+**Approach:** Iterative - Build, Test, Integrate, Repeat  
+**Order:** STT → RAG → MoE (Easiest to Hardest)
 
 ---
 
-## ✅ Completed Components
+## 🎯 Phase 1: Speech-to-Text Service (Days 1-4)
 
-### 1. Database Layer (`database/`)
+**Goal:** Upload audio files, transcribe Persian speech, create deal activities
 
-**Status:** ✅ **Complete & Functional**
+### Day 1: Setup & Basic STT Service
 
-#### `database.py` - Database Manager
-- PostgreSQL connection with pooling
-- Query execution methods (SELECT, INSERT, UPDATE, DELETE)
-- Batch operations support
-- Transaction management
-- SSH tunnel support for remote databases
-- Health checks and statistics
-- Backup utilities
+#### Morning: Environment Setup
+**Tasks:**
+1. Install dependencies
+   ```bash
+   pip install openai-whisper transformers accelerate
+   pip install soundfile librosa  # Audio processing
+   ```
 
-**Key Features:**
-- Connection pooling with psycopg2
-- Automatic placeholder conversion (? → %s)
-- Context manager support
-- Comprehensive error handling
+2. Download models
+   - Test with whisper-medium first (faster, smaller)
+   - Option for whisper-large-v3 later
 
-#### `models/` - Data Models
-**Complete Models:**
-- ✅ `Deal` - Business deal representation
-- ✅ `DealActivity` - Activities/interactions on deals
-- ✅ `CRMAgent` - Team members and roles
-- ✅ `SentimentAnalysis` - Sentiment analysis results
+3. Create service structure
+   ```
+   services/stt_service.py
+   - __init__
+   - load_model()
+   - transcribe_audio(audio_path)
+   - transcribe_batch(audio_paths)
+   ```
 
-**Repository Pattern:**
-- ✅ `DealRepository` - Deal CRUD operations
-- ✅ `DealActivityRepository` - Activity management
-- ✅ `CRMAgentRepository` - Agent management with performance metrics
-- ✅ `SentimentRepository` - Sentiment result storage
-- ✅ `RepositoryManager` - Unified repository access
+**Deliverables:**
+- ✅ STT dependencies installed
+- ✅ Whisper model downloaded
+- ✅ Basic service class created
 
-**Migration Utility:**
-- ✅ `simplified_migration_utility.py` - CSV to database migration
-- ✅ Data type conversion and validation
-- ✅ Integrity validation
-- ✅ Migration reporting
+#### Afternoon: Core Transcription Logic
+**Tasks:**
+1. Implement transcription method
+   - Load audio file
+   - Run Whisper inference
+   - Return transcribed text
+   - Handle errors gracefully
 
-### 2. Services Layer (`services/`)
+2. Add Persian-specific handling
+   - Set language="fa" for Whisper
+   - Persian text cleanup
+   - Handle mixed Persian/English
 
-**Status:** 🟡 **Partially Complete**
+3. Test with sample audio
+   - Record test audio file
+   - Verify transcription accuracy
+   - Check performance
 
-#### ✅ `base_service.py` - Base Service Class
-- Common functionality for all services
-- Caching support
-- Field validation
-- Safe execution wrapper
-- Logging integration
-
-#### ✅ `deal_service.py` - Deal Management Service
-**Implemented Methods:**
-- `get_deal(deal_id)` - Retrieve single deal
-- `get_deals_by_status(status)` - Filter by status
-- `get_all_deals()` - Retrieve all deals
-- `get_deals_summary(days)` - Summary statistics
-- `get_deal_timeline(deal_id)` - Deal timeline with milestones
-- `_calculate_deal_duration()` - Duration calculation
-
-#### ✅ `sentiment_service.py` - Sentiment Analysis Service
-**Implemented Methods:**
-- `initialize()` - Load Persian sentiment model
-- `analyze_text(text)` - Single text analysis
-- `analyze_batch(texts)` - Batch analysis
-- `analyze_activities_sentiment(activities)` - Activity-based analysis
-- `get_sentiment_trends(activities, days)` - Temporal trends
-- Caching for sentiment results
-- Support for HooshvareLab BERT-based Persian model
-
-**Key Features:**
-- Hugging Face Transformers integration
-- Persian language support
-- Label mapping (مثبت/خنثی/منفی)
-- Confidence scoring
-- Text truncation for long inputs
-
-#### ⚠️ `analytics_service.py` - Advanced Analytics Service
-**Status:** 🔴 **INCOMPLETE - CRITICAL**
-
-**Current State:**
-```python
-def analyze_deal_comprehensive(self, deal_id: int) -> Dict[str, Any]:
-    """
-    Comprehensive
-    """
-    # TRUNCATED - NOT IMPLEMENTED
-```
-
-**Missing Implementations:**
-- `analyze_deal_comprehensive()` - Full deal analysis
-- `analyze_portfolio_overview()` - Portfolio-wide analytics
-- `analyze_portfolio_health()` - Health scoring
-- `_create_activity_timeline()` - Timeline generation
-- Health score calculation algorithm
-- Risk indicator identification
-- Insight generation
-
-### 3. MCP Server (`mcp_spec/`)
-
-**Status:** ✅ **Complete** (but depends on incomplete AnalyticsService)
-
-#### `server.py` - Main MCP Server
-**Implemented Features:**
-- Clean server initialization
-- Service dependency injection
-- Lifecycle management (startup/shutdown)
-- Health status reporting
-- Async service initialization
-- Proper cleanup on exit
-
-**Initialization Flow:**
-1. Database connection setup
-2. Repository creation
-3. Sentiment service initialization (async)
-4. Analytics service initialization
-5. Handler initialization
-6. MCP protocol handler registration
-
-#### `handlers/tool_handlers.py` - MCP Tool Handlers
-**Implemented Tools:**
-- ✅ `analyze_deal` - Comprehensive deal analysis
-- ✅ `analyze_deals_overview` - Portfolio analysis
-- ✅ `get_deal_activities_with_sentiment` - Activities with sentiment
-- ✅ `analyze_portfolio_health` - Health metrics
-- ✅ `analyze_text_sentiment` - Text sentiment analysis
-- ✅ `get_sentiment_trends` - Temporal sentiment trends
-
-**Features:**
-- Input schema validation
-- Error handling and logging
-- Async model loading on demand
-- JSON response formatting
-
-#### `handlers/resource_handlers.py` - MCP Resource Handlers
-**Implemented Resources:**
-- ✅ `deals://dashboard` - Comprehensive dashboard
-- ✅ `deals://portfolio-health` - Health metrics
-- ✅ `deals://activity-summary` - Activity summary
-- ✅ `deals://sentiment-overview` - Sentiment overview
-- ✅ `deals://sentiment-trends` - Temporal trends
-
-#### `schemas/tool_schemas.py` - Input Schemas
-- ✅ All tool input schemas defined
-- ✅ Type validation
-- ✅ Required field specification
-- ✅ Enum constraints for known values
-
-### 4. Web Interface (`gradio_mcp_client.py`)
-
-**Status:** ✅ **Complete & Functional**
-
-#### Features:
-- **Server Connection Tab:**
-  - Connect to MCP server
-  - Real-time status display
-  - Service availability indicators
-
-- **Sentiment Analysis Tab:**
-  - Text input for analysis
-  - Language selection (Persian/English)
-  - Visualization with Plotly
-  - Confidence scoring display
-
-- **Deal Analytics Tab:**
-  - Date range selection
-  - Activity charts
-  - Sentiment distribution
-  - Summary statistics
-
-- **Sentiment Trends Tab:**
-  - Period selection (7d, 30d, 90d, 180d)
-  - Trend visualization
-  - Summary metrics
-
-**Technical Implementation:**
-- Async/sync wrappers for Gradio compatibility
-- Event loop management
-- Mock data fallback for testing
-- Error handling and user feedback
-- Responsive layout with Gradio Blocks
-
-### 5. Configuration & Utilities
-
-#### ✅ `config/settings.py` - Configuration Management
-**Settings Classes:**
-- `AppSettings` - Application metadata
-- `MCPSettings` - MCP server configuration
-- `SentimentSettings` - Model configuration
-- `AnalysisSettings` - Analytics thresholds
-- `PathSettings` - Directory management
-- `FeatureFlags` - Feature toggles
-
-#### ✅ `utils/logging_config.py` - Logging Setup
-- Centralized logging configuration
-- Multiple formatters (simple/detailed)
-- File and console handlers
-- Module-specific loggers
-
-#### ✅ `utils/exceptions.py` - Custom Exceptions
-- `PersianDealAnalyzerError` - Base exception
-- `DatabaseError` - Database issues
-- `ServiceError` - Service layer errors
-- `SentimentAnalysisError` - Sentiment errors
-- `ValidationError` - Input validation
-- `ConfigurationError` - Config issues
-- `MCPServerError` - MCP protocol errors
-
-### 6. Deployment Configuration
-
-#### ✅ Docker Support
-**Files:**
-- `docker-compose.yml` - Multi-service orchestration
-- `Dockerfile` (mentioned in docker_setup.txt)
-- `.dockerignore` - Build optimization
-
-**Services Defined:**
-- `deal-analyzer-web` - Gradio interface (port 7860)
-- `deal-analyzer-mcp` - MCP server
-- `nginx` - Reverse proxy (ports 80/443)
-- `redis` - Caching layer (port 6379)
-- PostgreSQL support (commented out)
-
-**Features:**
-- Volume mounts for logs, models, cache
-- Health checks
-- Resource limits
-- Restart policies
-- Network isolation
-
-#### ✅ Dependency Management
-- `requirements.txt` - Main dependencies
-- `requirements_gradio.txt` - Web interface dependencies
-- `pyproject.toml` - Project metadata and optional dependencies
+**Deliverables:**
+- ✅ Working transcription function
+- ✅ Test audio files transcribed
+- ✅ Error handling implemented
 
 ---
 
-## 🚧 Incomplete Components
+### Day 2: Repository & Integration
 
-### 1. Analytics Service (CRITICAL)
+#### Morning: Audio Storage & Repository
+**Tasks:**
+1. Create audio file storage
+   ```
+   audio_files/
+   ├── uploads/
+   ├── processed/
+   └── cache/
+   ```
 
-**File:** `services/analytics_service.py`
+2. Create AudioRepository
+   ```python
+   models/repositories.py (extend)
+   - AudioRepository
+     - save_audio(file_data, deal_id)
+     - get_audio(audio_id)
+     - delete_audio(audio_id)
+     - link_to_activity(audio_id, activity_id)
+   ```
 
-**Problem:** Implementation is truncated at line 24
+3. Add database table (if needed)
+   ```sql
+   CREATE TABLE audio_transcriptions (
+       id VARCHAR PRIMARY KEY,
+       deal_id VARCHAR REFERENCES deals(id),
+       activity_id VARCHAR REFERENCES deal_activities(id),
+       file_path VARCHAR,
+       transcription TEXT,
+       model_used VARCHAR,
+       confidence FLOAT,
+       created_at TIMESTAMP
+   );
+   ```
 
-**Impact:** 
-- MCP tools cannot provide comprehensive analytics
-- Health scoring non-functional
-- Portfolio analysis unavailable
-- Insight generation missing
+**Deliverables:**
+- ✅ Audio storage structure
+- ✅ AudioRepository implemented
+- ✅ Database schema updated
 
-**Required Implementations:**
+#### Afternoon: Service Integration
+**Tasks:**
+1. Integrate with DealService
+   ```python
+   Deal
 
-```python
-def analyze_deal_comprehensive(self, deal_id: int) -> Dict[str, Any]:
-    """
-    Combine deal data, activities, and sentiment into comprehensive analysis
-    
-    Returns:
-    {
-        "deal": {...},
-        "activities": [...],
-        "sentiment_summary": {...},
-        "health_score": 85,
-        "risk_indicators": [...],
-        "recommendations": [...]
-    }
-    """
-    # TODO: Implement
-    pass
+Service.create_activity_from_audio(audio_file, deal_id)
+   ```
 
-def analyze_portfolio_overview(self, status=None, days=30) -> Dict[str, Any]:
-    """
-    Portfolio-wide analytics
-    
-    Returns:
-    {
-        "summary": {...},
-        "activity_breakdown": {...},
-        "sentiment_overview": {...},
-        "health_overview": {...},
-        "insights": [...]
-    }
-    """
-    # TODO: Implement
-    pass
+2. Add caching for transcriptions
+   - Cache by audio file hash
+   - Avoid re-transcribing same audio
 
-def analyze_portfolio_health(self, status_filter=None, days=30) -> Dict[str, Any]:
-    """
-    Health scoring and risk identification
-    
-    Returns:
-    {
-        "overall_health_score": 75,
-        "deals_by_health": {...},
-        "risk_indicators": [...],
-        "recommendations": [...]
-    }
-    """
-    # TODO: Implement
-    pass
+3. Batch processing support
+   - Process multiple files
+   - Progress tracking
 
-def _create_activity_timeline(self, activities) -> List[Dict]:
-    """Generate chronological timeline of activities"""
-    # TODO: Implement
-    pass
+**Deliverables:**
+- ✅ STT integrated with DealService
+- ✅ Transcription caching working
+- ✅ Batch processing functional
 
-def _calculate_health_score(self, deal, activities, sentiments) -> int:
-    """
-    Calculate health score (0-100) based on:
-    - Activity recency
-    - Activity frequency
-    - Sentiment trends
-    - Deal age
-    - Status progression
-    """
-    # TODO: Implement using AnalysisSettings thresholds
-    pass
+---
+
+### Day 3: MCP Tools & Gradio UI
+
+#### Morning: MCP Tool Creation
+**Tasks:**
+1. Add STT tools to tool_handlers.py
+   ```python
+   - transcribe_audio(audio_file_path)
+   - transcribe_and_create_activity(audio_file, deal_id)
+   - batch_transcribe(audio_files)
+   ```
+
+2. Add schemas
+   ```python
+   mcp_spec/schemas/tool_schemas.py
+   - TranscribeAudioInput
+   - TranscribeAndCreateActivityInput
+   ```
+
+3. Test MCP tools
+   - Test tool calls
+   - Verify responses
+   - Error handling
+
+**Deliverables:**
+- ✅ 3 new MCP tools
+- ✅ Schemas defined
+- ✅ Tools tested
+
+#### Afternoon: Gradio Interface
+**Tasks:**
+1. Add "Audio Transcription" tab
+   - File upload widget
+   - Deal selector dropdown
+   - Transcribe button
+   - Result display area
+
+2. Implement callbacks
+   - Handle file upload
+   - Call STT service
+   - Display transcription
+   - Option to create activity
+
+3. Add progress indicators
+   - Processing status
+   - Estimated time
+   - Cancel option
+
+**Deliverables:**
+- ✅ New Gradio tab
+- ✅ Audio upload working
+- ✅ Live transcription display
+
+---
+
+### Day 4: Testing & Optimization
+
+#### Morning: Write Tests
+**Tasks:**
+1. Create test_stt_service.py
+   ```python
+   TestSTTService
+   - test_load_model()
+   - test_transcribe_audio()
+   - test_persian_text_handling()
+   - test_error_handling()
+   - test_batch_processing()
+   ```
+
+2. Integration tests
+   - Upload → Transcribe → Create Activity
+   - End-to-end workflow
+
+**Deliverables:**
+- ✅ 10+ STT tests
+- ✅ Integration tests passing
+
+#### Afternoon: Optimization & Polish
+**Tasks:**
+1. Performance optimization
+   - Model quantization (if needed)
+   - GPU support check
+   - Parallel processing for batch
+
+2. Error handling improvements
+   - Invalid audio formats
+   - Corrupted files
+   - Long audio files
+
+3. Documentation
+   - Usage examples
+   - API documentation
+
+**Deliverables:**
+- ✅ Optimized performance
+- ✅ Robust error handling
+- ✅ Documentation complete
+
+**Phase 1 Complete:** ✅ Fully functional STT service
+
+---
+
+## 🎯 Phase 2: RAG System (Days 5-11)
+
+**Goal:** Semantic search over CRM deals using ChromaDB + embeddings + Qwen2
+
+### Day 5: ChromaDB Setup & Embedding Model
+
+#### Morning: Environment Setup
+**Tasks:**
+1. Install dependencies
+   ```bash
+   pip install chromadb sentence-transformers
+   pip install qwen-agent  # or transformers for Qwen2
+   ```
+
+2. Create vector store directory
+   ```
+   vector_store/
+   ├── chroma_db/
+   ├── embeddings_cache/
+   └── config.json
+   ```
+
+3. Test ChromaDB
+   - Create test collection
+   - Add test documents
+   - Query test vectors
+
+**Deliverables:**
+- ✅ ChromaDB installed and working
+- ✅ Storage structure created
+- ✅ Test collection functional
+
+#### Afternoon: Embedding Model Integration
+**Tasks:**
+1. Load embedding model
+   ```python
+   from sentence_transformers import SentenceTransformer
+   model = SentenceTransformer(
+       'sentence-transformers/paraphrase-multilingual-mpnet-base-v2'
+   )
+   ```
+
+2. Create embedding service
+   ```python
+   services/embedding_service.py
+   - load_model()
+   - embed_text(text)
+   - embed_batch(texts)
+   ```
+
+3. Test embeddings
+   - Test Persian text
+   - Test English text
+   - Verify similarity scores
+
+**Deliverables:**
+- ✅ Embedding model loaded
+- ✅ Embedding service created
+- ✅ Embeddings tested
+
+---
+
+### Day 6: Document Ingestion & Indexing
+
+#### Morning: Data Extraction
+**Tasks:**
+1. Extract CRM data for indexing
+   ```python
+   - Deal title + description
+   - Activity notes
+   - Combined deal context
+   ```
+
+2. Create document processor
+   ```python
+   services/document_processor.py
+   - extract_deal_documents()
+   - chunk_text(text, max_length=512)
+   - prepare_for_indexing()
+   ```
+
+3. Add metadata
+   - Deal ID
+   - Timestamp
+   - Deal status
+   - Any custom fields
+
+**Deliverables:**
+- ✅ Data extraction working
+- ✅ Document processor created
+- ✅ Metadata attached
+
+#### Afternoon: Index CRM Data
+**Tasks:**
+1. Create indexing pipeline
+   ```python
+   services/indexing_service.py
+   - index_deals()
+   - index_single_deal(deal_id)
+   - update_index(deal_id)
+   - delete_from_index(deal_id)
+   ```
+
+2. Implement batch indexing
+   - Process all existing deals
+   - Show progress
+   - Handle errors
+
+3. Test indexing
+   - Index sample deals
+   - Verify in ChromaDB
+   - Check retrieval
+
+**Deliverables:**
+- ✅ Indexing pipeline functional
+- ✅ All deals indexed
+- ✅ ChromaDB populated
+
+---
+
+### Day 7: RAG Service Core
+
+#### Full Day: RAG Service Implementation
+**Tasks:**
+1. Create RAG service structure
+   ```python
+   services/rag_service.py
+   
+   class RAGService:
+       def __init__():
+           - Load ChromaDB
+           - Load embedding model
+           - Initialize Qwen2
+       
+       def search(query, top_k=5):
+           - Embed query
+           - Search ChromaDB
+           - Return results with metadata
+       
+       def ask(question):
+           - Search relevant context
+           - Build prompt
+           - Query Qwen2
+           - Return answer
+       
+       def index_new_deal(deal):
+           - Extract text
+           - Generate embedding
+           - Store in ChromaDB
+   ```
+
+2. Implement semantic search
+   - Query embedding
+   - Similarity search
+   - Re-ranking (optional)
+   - Return top results
+
+3. Context building
+   - Select top K results
+   - Format for LLM
+   - Include metadata
+   - Limit token count
+
+**Deliverables:**
+- ✅ RAGService class complete
+- ✅ Semantic search working
+- ✅ Context building functional
+
+---
+
+### Day 8: Qwen2 Integration
+
+#### Morning: Qwen2 Setup
+**Tasks:**
+1. Install/Load Qwen2
+   ```bash
+   # Option 1: Via transformers
+   pip install transformers>=4.37.0
+   
+   # Option 2: Via qwen-agent
+   pip install qwen-agent
+   ```
+
+2. Load model
+   ```python
+   from transformers import AutoModelForCausalLM, AutoTokenizer
+   
+   model = AutoModelForCausalLM.from_pretrained(
+       "Qwen/Qwen2-7B-Instruct",
+       device_map="auto",
+       torch_dtype="auto"
+   )
+   tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2-7B-Instruct")
+   ```
+
+3. Test generation
+   - Simple prompt
+   - Persian prompt
+   - Context-based prompt
+
+**Deliverables:**
+- ✅ Qwen2 loaded
+- ✅ Generation working
+- ✅ Persian support verified
+
+#### Afternoon: RAG + Qwen2 Pipeline
+**Tasks:**
+1. Implement question answering
+   ```python
+   def ask(question):
+       # 1. Retrieve context
+       results = self.search(question, top_k=3)
+       context = self._format_context(results)
+       
+       # 2. Build prompt
+       prompt = f"""
+       بر اساس اطلاعات زیر به سوال پاسخ بده:
+       
+       اطلاعات:
+       {context}
+       
+       سوال: {question}
+       
+       پاسخ:
+       """
+       
+       # 3. Generate answer
+       answer = self.qwen2_generate(prompt)
+       return answer
+   ```
+
+2. Prompt engineering
+   - System prompts
+   - Few-shot examples
+   - Persian-specific formatting
+
+3. Test end-to-end
+   - Ask test questions
+   - Verify answers
+   - Check accuracy
+
+**Deliverables:**
+- ✅ RAG + Qwen2 pipeline working
+- ✅ Question answering functional
+- ✅ Accuracy acceptable
+
+---
+
+### Day 9: Incremental Indexing & Cache
+
+#### Morning: Real-time Indexing
+**Tasks:**
+1. Hook into deal creation
+   - Auto-index new deals
+   - Update on deal modification
+   - Delete on deal deletion
+
+2. Implement incremental updates
+   ```python
+   # In DealService or as observer
+   def on_deal_created(deal):
+       rag_service.index_new_deal(deal)
+   
+   def on_deal_updated(deal):
+       rag_service.update_deal_index(deal)
+   
+   def on_deal_deleted(deal_id):
+       rag_service.delete_from_index(deal_id)
+   ```
+
+3. Test real-time updates
+   - Create deal → Check index
+   - Update deal → Verify change
+   - Delete deal → Confirm removal
+
+**Deliverables:**
+- ✅ Real-time indexing working
+- ✅ Incremental updates functional
+- ✅ Index stays synchronized
+
+#### Afternoon: Caching & Optimization
+**Tasks:**
+1. Cache search results
+   - Query hash → Results
+   - TTL: 5-10 minutes
+   - Using existing CacheService
+
+2. Cache embeddings
+   - Text hash → Embedding vector
+   - Avoid re-embedding same text
+
+3. Performance optimization
+   - Batch embedding when possible
+   - Limit vector dimensions if needed
+   - Optimize ChromaDB queries
+
+**Deliverables:**
+- ✅ Search caching implemented
+- ✅ Embedding cache working
+- ✅ Performance improved
+
+---
+
+### Day 10: MCP Tools & Gradio UI
+
+#### Morning: MCP Tools
+**Tasks:**
+1. Add RAG tools
+   ```python
+   mcp_spec/handlers/tool_handlers.py
+   
+   - search_deals_semantic(query, top_k)
+   - ask_about_deals(question)
+   - index_deal(deal_id)
+   - search_with_filters(query, filters)
+   ```
+
+2. Add schemas
+   ```python
+   - SemanticSearchInput
+   - AskQuestionInput
+   - IndexDealInput
+   ```
+
+3. Test tools
+   - Test each tool
+   - Verify responses
+   - Check error handling
+
+**Deliverables:**
+- ✅ 4 new RAG tools
+- ✅ Schemas defined
+- ✅ Tools tested
+
+#### Afternoon: Gradio Interface
+**Tasks:**
+1. Add "RAG Search" tab
+   - Query input box
+   - Search button
+   - Results display (deal cards)
+   - Relevance scores
+
+2. Add "Ask Questions" tab
+   - Question input
+   - Ask button
+   - Answer display
+   - Source deals shown
+
+3. Implement callbacks
+   - Handle searches
+   - Display results
+   - Format nicely
+
+**Deliverables:**
+- ✅ 2 new Gradio tabs
+- ✅ Search UI functional
+- ✅ Q&A UI working
+
+---
+
+### Day 11: Testing & Documentation
+
+#### Morning: Write Tests
+**Tasks:**
+1. Create test_rag_service.py
+   ```python
+   TestRAGService
+   - test_search_semantic()
+   - test_ask_question()
+   - test_indexing()
+   - test_real_time_updates()
+   - test_caching()
+   ```
+
+2. Integration tests
+   - End-to-end RAG workflow
+   - Index → Search → Answer
+
+**Deliverables:**
+- ✅ 10+ RAG tests
+- ✅ Integration tests passing
+
+#### Afternoon: Documentation & Polish
+**Tasks:**
+1. Document RAG system
+   - Architecture
+   - Usage examples
+   - API documentation
+
+2. Performance tuning
+   - Optimize search speed
+   - Tune vector parameters
+   - Memory optimization
+
+3. Error handling improvements
+   - Handle edge cases
+   - Better error messages
+
+**Deliverables:**
+- ✅ RAG documentation complete
+- ✅ Performance optimized
+- ✅ Robust error handling
+
+**Phase 2 Complete:** ✅ Fully functional RAG system
+
+---
+
+## 🎯 Phase 3: Mixture of Experts (Days 12-21)
+
+**Goal:** ML-based router + 4 expert models (Sentiment ✅, Summarization, NER, QA)
+
+### Day 12: Architecture & Router Model Selection
+
+#### Morning: MoE Architecture Design
+**Tasks:**
+1. Design MoE system
+   ```
+   User Query
+       │
+       ▼
+   ┌─────────────┐
+   │   Router    │ ← Small BERT classifier
+   │   Model     │   (Task classification)
+   └──────┬──────┘
+          │
+          ├──→ Expert 1: Sentiment ✅
+          ├──→ Expert 2: Summarization
+          ├──→ Expert 3: Entity Extraction
+          └──→ Expert 4: Question Answering
+   ```
+
+2. Define task categories
+   - Task 1: Sentiment Analysis
+   - Task 2: Summarization
+   - Task 3: Entity Extraction
+   - Task 4: Question Answering
+   - Task 5: General (fallback)
+
+3. Create routing logic
+   ```python
+   services/moe_service.py (structure)
+   
+   class MoERouter:
+       - load_router_model()
+       - classify_task(query)
+       - route(query, task_id)
+   
+   class ExpertManager:
+       - register_expert(task_id, expert)
+       - get_expert(task_id)
+       - execute(task_id, query)
+   ```
+
+**Deliverables:**
+- ✅ Architecture documented
+- ✅ Task categories defined
+- ✅ Service structure created
+
+#### Afternoon: Router Model Selection
+**Tasks:**
+1. Choose router approach:
+   
+   **Option A: Rule-based (Quick Start)**
+   - Keyword matching
+   - Regex patterns
+   - Fast, deterministic
+   
+   **Option B: ML-based (Better)**
+   - Small BERT classifier
+   - Trained on task classification
+   - More accurate
+
+2. For ML-based:
+   - Find pre-trained model or
+   - Prepare to fine-tune small BERT
+
+3. Create training data (if needed)
+   ```python
+   task_examples = [
+       ("این معامله چه احساسی داره؟", "sentiment"),
+       ("این متن رو خلاصه کن", "summarization"),
+       ("اسم مشتری چیه؟", "entity_extraction"),
+       ("آخرین فعالیت چی بود؟", "question_answering"),
+   ]
+   ```
+
+**Deliverables:**
+- ✅ Router approach decided
+- ✅ Training data prepared (if ML)
+- ✅ Initial router implementation
+
+---
+
+### Day 13-14: Expert Models Setup
+
+#### Day 13 Morning: Expert 2 - Summarization
+**Tasks:**
+1. Choose model
+   ```python
+   # Option 1: mT5 (multilingual)
+   from transformers import MT5ForConditionalGeneration, MT5Tokenizer
+   model = MT5ForConditionalGeneration.from_pretrained("google/mt5-base")
+   
+   # Option 2: Persian T5
+   # Check Hugging Face for Persian T5 models
+   ```
+
+2. Create SummarizationExpert
+   ```python
+   services/experts/summarization_expert.py
+   
+   class SummarizationExpert:
+       def __init__():
+           - Load model
+           - Load tokenizer
+       
+       def summarize(text, max_length=150):
+           - Tokenize
+           - Generate summary
+           - Return text
+   ```
+
+3. Test summarization
+   - Test with long deal descriptions
+   - Verify Persian quality
+   - Check speed
+
+**Deliverables:**
+- ✅ Summarization model loaded
+- ✅ Expert class created
+- ✅ Summarization tested
+
+#### Day 13 Afternoon: Expert 3 - Entity Extraction (NER)
+**Tasks:**
+1. Choose NER model
+   ```python
+   # Option 1: Multilingual NER
+   from transformers import AutoModelForTokenClassification, AutoTokenizer
+   model = AutoModelForTokenClassification.from_pretrained(
+       "Davlan/distilbert-base-multilingual-cased-ner-hrl"
+   )
+   
+   # Option 2: Persian-specific NER
+   # Check for Persian NER models on Hugging Face
+   ```
+
+2. Create EntityExtractionExpert
+   ```python
+   services/experts/entity_extraction_expert.py
+   
+   class EntityExtractionExpert:
+       def __init__():
+           - Load NER model
+       
+       def extract_entities(text):
+           - Run NER
+           - Return entities by type:
+             {
+               "persons": [...],
+               "organizations": [...],
+               "amounts": [...],
+               "dates": [...]
+             }
+   ```
+
+3. Test entity extraction
+   - Test on deal descriptions
+   - Verify entity types
+   - Check accuracy
+
+**Deliverables:**
+- ✅ NER model loaded
+- ✅ Expert class created
+- ✅ Entity extraction tested
+
+#### Day 14 Morning: Expert 4 - Question Answering
+**Tasks:**
+1. Choose QA model
+   ```python
+   # Option: XLM-RoBERTa for QA
+   from transformers import AutoModelForQuestionAnswering, AutoTokenizer
+   model = AutoModelForQuestionAnswering.from_pretrained(
+       "deepset/xlm-roberta-large-squad2"
+   )
+   ```
+
+2. Create QAExpert
+   ```python
+   services/experts/qa_expert.py
+   
+   class QAExpert:
+       def __init__():
+           - Load QA model
+           - Initialize RAG service
+       
+       def answer_question(question, context=None):
+           - If no context, use RAG
+           - Run QA model
+           - Return answer + confidence
+   ```
+
+3. Test QA
+   - Test with deal questions
+   - Verify Persian questions
+   - Check with/without context
+
+**Deliverables:**
+- ✅ QA model loaded
+- ✅ Expert class created
+- ✅ QA tested
+
+#### Day 14 Afternoon: Expert Integration
+**Tasks:**
+1. Register all experts
+   ```python
+   services/moe_service.py
+   
+   expert_manager = ExpertManager()
+   expert_manager.register("sentiment", SentimentExpert())
+   expert_manager.register("summarization", SummarizationExpert())
+   expert_manager.register("entity_extraction", EntityExtractionExpert())
+   expert_manager.register("question_answering", QAExpert())
+   ```
+
+2. Test expert manager
+   - Call each expert
+   - Verify responses
+   - Check performance
+
+**Deliverables:**
+- ✅ All 4 experts registered
+- ✅ Expert manager functional
+- ✅ Individual experts tested
+
+---
+
+### Day 15-16: Router Training & Integration
+
+#### Day 15: Router Model Training (if ML-based)
+**Tasks:**
+1. Prepare training dataset
+   - 100-200 examples per task
+   - Persian queries
+   - Clear task labels
+
+2. Fine-tune router model
+   ```python
+   # Use small BERT for efficiency
+   from transformers import BertForSequenceClassification
+   
+   model = BertForSequenceClassification.from_pretrained(
+       "bert-base-multilingual-cased",
+       num_labels=5  # 5 tasks
+   )
+   
+   # Fine-tune on task classification
+   ```
+
+3. Evaluate router
+   - Test accuracy on validation set
+   - Target: >90% accuracy
+   - Check confusion matrix
+
+**Deliverables:**
+- ✅ Router model trained
+- ✅ >90% classification accuracy
+- ✅ Model saved
+
+#### Day 16: MoE Service Integration
+**Tasks:**
+1. Complete MoEService
+   ```python
+   services/moe_service.py
+   
+   class MoEService:
+       def __init__():
+           - Load router
+           - Load expert manager
+       
+       def process(query):
+           # 1. Classify task
+           task_id = self.router.classify(query)
+           
+           # 2. Route to expert
+           expert = self.expert_manager.get_expert(task_id)
+           
+           # 3. Execute
+           result = expert.execute(query)
+           
+           # 4. Format response
+           return {
+               "task": task_id,
+               "expert": expert.name,
+               "result": result,
+               "confidence": confidence
+           }
+   ```
+
+2. Add fallback logic
+   - If low confidence, use multiple experts
+   - Aggregate results
+   - Return combined output
+
+3. Test end-to-end
+   - Various query types
+   - Verify correct routing
+   - Check results
+
+**Deliverables:**
+- ✅ MoEService complete
+- ✅ Routing working correctly
+- ✅ Fallback logic implemented
+
+---
+
+### Day 17: MCP Tools & Response Aggregation
+
+#### Morning: MCP Tools
+**Tasks:**
+1. Add MoE tools
+   ```python
+   mcp_spec/handlers/tool_handlers.py
+   
+   - moe_analyze(query)  # Auto-route
+   - summarize_text(text)  # Direct to summarization
+   - extract_entities(text)  # Direct to NER
+   - answer_question(question, context)  # Direct to QA
+   ```
+
+2. Add schemas
+   ```python
+   - MoEAnalyzeInput
+   - SummarizeTextInput
+   - ExtractEntitiesInput
+   - AnswerQuestionInput
+   ```
+
+3. Test tools
+
+**Deliverables:**
+- ✅ 4 new MoE tools
+- ✅ Tools tested
+- ✅ Schemas defined
+
+#### Afternoon: Multi-Expert Aggregation
+**Tasks:**
+1. Implement ensemble mode
+   ```python
+   def analyze_comprehensive(text):
+       # Run multiple experts
+       sentiment = sentiment_expert.analyze(text)
+       summary = summarization_expert.summarize(text)
+       entities = ner_expert.extract(text)
+       
+       return {
+           "sentiment": sentiment,
+           "summary": summary,
+           "entities": entities
+       }
+   ```
+
+2. Result formatting
+   - Combine outputs nicely
+   - Structured response
+   - JSON format
+
+3. Test aggregation
+   - Multi-expert queries
+   - Verify combined results
+
+**Deliverables:**
+- ✅ Multi-expert mode working
+- ✅ Results aggregated properly
+- ✅ Formatted responses
+
+---
+
+### Day 18: Gradio UI for MoE
+
+#### Full Day: MoE Interface
+**Tasks:**
+1. Add "Multi-Expert Analysis" tab
+   - Query input
+   - Auto-detect task (show which expert)
+   - Execute button
+   - Results display
+
+2. Add specific expert tabs:
+   - "Summarization" tab
+   - "Entity Extraction" tab
+   - "Question Answering" tab
+
+3. Implement UI components:
+   - Expert selection dropdown (manual override)
+   - Confidence display
+   - Result highlighting
+   - Export results button
+
+4. Add visualizations:
+   - Entity highlighting in text
+   - Sentiment color coding
+   - Summary comparison
+
+**Deliverables:**
+- ✅ 4 new Gradio tabs
+- ✅ All UIs functional
+- ✅ Visualizations working
+
+---
+
+### Day 19: Integration with Existing Services
+
+#### Morning: Analytics Integration
+**Tasks:**
+1. Enhance AnalyticsService with MoE
+   ```python
+   services/analytics_service.py
+   
+   def analyze_deal_comprehensive(deal_id):
+       # ... existing code ...
+       
+       # NEW: Add MoE analysis
+       deal_text = deal.description
+       
+       moe_results = moe_service.analyze_comprehensive(deal_text)
+       
+       result["summary"] = moe_results["summary"]
+       result["entities"] = moe_results["entities"]
+       result["qa_capability"] = True
+       
+       return result
+   ```
+
+2. Use entities for insights
+   - Extract key information
+   - Populate deal fields
+   - Generate better insights
+
+3. Use summaries in reports
+   - Executive summaries
+   - Deal overviews
+
+**Deliverables:**
+- ✅ MoE integrated with Analytics
+- ✅ Enhanced insights
+- ✅ Better reports
+
+#### Afternoon: RAG + MoE Integration
+**Tasks:**
+1. Combine RAG with QA expert
+   ```python
+   def ask_with_rag_and_qa(question):
+       # 1. RAG retrieves context
+       context = rag_service.search(question)
+       
+       # 2. QA expert answers with context
+       answer = qa_expert.answer(question, context)
+       
+       return answer
+   ```
+
+2. Use summarization on RAG results
+   - Summarize long contexts
+   - Make answers concise
+
+3. Test combined pipeline
+   - RAG + QA
+   - RAG + Summarization
+
+**Deliverables:**
+- ✅ RAG + MoE integrated
+- ✅ Enhanced question answering
+- ✅ Pipeline tested
+
+---
+
+### Day 20: Testing & Performance
+
+#### Morning: Comprehensive Testing
+**Tasks:**
+1. Create test_moe_service.py
+   ```python
+   TestMoEService
+   - test_router_classification()
+   - test_each_expert()
+   - test_routing_accuracy()
+   - test_multi_expert_mode()
+   - test_fallback_logic()
+   ```
+
+2. Create test_experts.py
+   - TestSummarizationExpert
+   - TestEntityExtractionExpert
+   - TestQAExpert
+
+3. Integration tests
+   - End-to-end MoE workflows
+   - RAG + MoE
+   - Analytics + MoE
+
+**Deliverables:**
+- ✅ 20+ MoE tests
+- ✅ All tests passing
+- ✅ Integration verified
+
+#### Afternoon: Performance Optimization
+**Tasks:**
+1. Model optimization
+   - Quantization (int8)
+   - Model pruning
+   - Batch inference
+
+2. Caching
+   - Cache expert results
+   - Cache router decisions
+   - TTL strategies
+
+3. Parallel execution
+   - Run multiple experts in parallel
+   - Async processing
+
+4. Benchmark
+   - Measure latency
+   - Memory usage
+   - Throughput
+
+**Deliverables:**
+- ✅ Optimized performance
+- ✅ Caching implemented
+- ✅ Benchmarks recorded
+
+---
+
+### Day 21: Documentation & Polish
+
+#### Morning: Documentation
+**Tasks:**
+1. Write MoE documentation
+   - Architecture overview
+   - Each expert's purpose
+   - Usage examples
+   - API reference
+
+2. Create tutorials
+   - How to add new expert
+   - How to retrain router
+   - Troubleshooting guide
+
+3. Update main README
+   - New features section
+   - Architecture diagrams
+   - Quick start guide
+
+**Deliverables:**
+- ✅ Complete MoE documentation
+- ✅ Tutorials written
+- ✅ README updated
+
+#### Afternoon: Final Polish
+**Tasks:**
+1. Code cleanup
+   - Remove debug prints
+   - Add docstrings
+   - Format code
+
+2. Error handling review
+   - All edge cases covered
+   - Clear error messages
+   - Graceful degradation
+
+3. Final testing
+   - Run full test suite
+   - Manual testing
+   - Check all features
+
+4. Deployment preparation
+   - Update requirements.txt
+   - Update Docker config
+   - Create migration guide
+
+**Deliverables:**
+- ✅ Code polished
+- ✅ All errors handled
+- ✅ Ready for use
+
+**Phase 3 Complete:** ✅ Fully functional MoE system
+
+---
+
+## 📊 Milestone Summary
+
+### ✅ After Day 4: STT Complete
+- Upload audio → Transcribe → Create activities
+- MCP tools + Gradio UI
+- Fully tested
+
+### ✅ After Day 11: RAG Complete
+- Semantic search over CRM data
+- Question answering with Qwen2
+- ChromaDB integrated
+- MCP tools + Gradio UI
+- Fully tested
+
+### ✅ After Day 21: MoE Complete
+- ML-based router working
+- 4 experts operational (Sentiment, Summarization, NER, QA)
+- Multi-expert aggregation
+- Integrated with RAG + Analytics
+- MCP tools + Gradio UI
+- Fully tested
+
+---
+
+## 📋 Daily Checklist Template
+
+For each day, use this checklist:
+
 ```
+Day X: [Feature Name]
 
-### 2. Database Schema & Migrations
+Morning Tasks:
+□ Task 1
+□ Task 2
+□ Task 3
 
-**Missing:**
-- ❌ SQL schema files
-- ❌ Migration system (Alembic or custom)
-- ❌ Seed data scripts
-- ❌ Schema versioning
+Afternoon Tasks:
+□ Task 4
+□ Task 5
+□ Task 6
 
-**Issues:**
-- Table name inconsistency: code references both `crmteam` and `crm_agents`
-- `deal_activities.sentiment_score` and `sentiment_label` columns mentioned in code but may not exist in database
-- No formal migration history
+Testing:
+□ Unit tests written
+□ Integration tests passing
+□ Manual testing completed
 
-**Needed:**
-```sql
--- database/migrations/001_initial_schema.sql
-CREATE TABLE deals (...);
-CREATE TABLE deal_activities (...);
-CREATE TABLE crm_agents (...);
-CREATE TABLE sentiment_analysis (...);
+Documentation:
+□ Code documented
+□ API updated
+□ README updated (if needed)
 
--- Indexes for performance
-CREATE INDEX idx_deals_status ON deals(status);
-CREATE INDEX idx_activities_deal_id ON deal_activities(deal_id);
-CREATE INDEX idx_activities_date ON deal_activities(register_date);
+Deliverables:
+□ Deliverable 1
+□ Deliverable 2
+□ Deliverable 3
 
--- database/migrations/002_add_sentiment_columns.sql
-ALTER TABLE deal_activities 
-ADD COLUMN sentiment_score FLOAT,
-ADD COLUMN sentiment_label VARCHAR(50);
-```
-
-### 3. Redis Integration
-
-**Status:** Docker service defined but not integrated in code
-
-**Missing:**
-- ❌ Redis client wrapper
-- ❌ Cache service layer
-- ❌ Caching decorators
-- ❌ Cache invalidation strategy
-
-**Needed:**
-```python
-# services/cache_service.py
-class CacheService:
-    def __init__(self, redis_client):
-        self.redis = redis_client
-    
-    def cache_sentiment(self, text_hash, result, ttl=3600):
-        """Cache sentiment analysis result"""
-        pass
-    
-    def get_cached_sentiment(self, text_hash):
-        """Retrieve cached sentiment"""
-        pass
-    
-    def cache_analytics(self, key, data, ttl=300):
-        """Cache analytics results"""
-        pass
-```
-
-### 4. Testing Suite
-
-**Missing:**
-- ❌ Unit tests
-- ❌ Integration tests
-- ❌ Test fixtures
-- ❌ Test data
-- ❌ CI/CD pipeline
-- ❌ Coverage reporting
-
-**Needed Structure:**
-```
-tests/
-├── conftest.py                  # Pytest fixtures
-├── test_database/
-│   ├── test_database.py        # Database manager tests
-│   └── test_repositories.py    # Repository tests
-├── test_services/
-│   ├── test_deal_service.py
-│   ├── test_sentiment_service.py
-│   └── test_analytics_service.py
-├── test_mcp/
-│   ├── test_server.py
-│   ├── test_handlers.py
-│   └── test_schemas.py
-├── test_models/
-│   └── test_data_models.py
-└── test_integration/
-    ├── test_end_to_end.py
-    └── test_gradio_interface.py
-```
-
-### 5. Production Infrastructure
-
-#### Security (CRITICAL for Production)
-**Missing:**
-- ❌ Authentication system
-- ❌ Authorization/RBAC
-- ❌ API rate limiting
-- ❌ Input sanitization
-- ❌ SQL injection prevention (using parameterized queries - good, but needs review)
-- ❌ XSS prevention in Gradio interface
-- ❌ CORS configuration
-- ❌ Secrets management (credentials in .env file)
-
-#### Monitoring & Observability
-**Missing:**
-- ❌ Prometheus metrics
-- ❌ Grafana dashboards
-- ❌ Error tracking (Sentry)
-- ❌ Request tracing
-- ❌ Performance monitoring
-- ❌ Alert system
-
-**Needed:**
-```python
-# services/monitoring.py
-from prometheus_client import Counter, Histogram, Gauge
-
-request_count = Counter('mcp_requests_total', 'Total requests', ['tool', 'status'])
-request_duration = Histogram('mcp_request_duration_seconds', 'Request duration')
-model_inference_time = Histogram('sentiment_inference_seconds', 'Model inference time')
-active_connections = Gauge('mcp_active_connections', 'Active connections')
-```
-
-#### Deployment
-**Missing:**
-- ❌ Production-ready Nginx configuration
-- ❌ SSL/TLS certificate management
-- ❌ Environment-specific configurations
-- ❌ Kubernetes manifests (mentioned in docker_setup.txt but not complete)
-- ❌ Health check endpoints
-- ❌ Graceful shutdown handling
-- ❌ Database backup strategy
-
-### 6. Documentation
-
-**Missing:**
-- ❌ API documentation (OpenAPI/Swagger)
-- ❌ Deployment guide
-- ❌ Developer guide
-- ❌ User guide for Gradio interface
-- ❌ Architecture decision records (ADRs)
-- ❌ Troubleshooting guide
-
-**Needed:**
-```
-docs/
-├── api/
-│   ├── mcp_protocol.md
-│   ├── tools.md
-│   └── resources.md
-├── deployment/
-│   ├── requirements.md
-│   ├── installation.md
-│   ├── configuration.md
-│   └── troubleshooting.md
-├── development/
-│   ├── architecture.md
-│   ├── contributing.md
-│   ├── testing.md
-│   └── code_style.md
-└── user_guide/
-    ├── gradio_interface.md
-    └── use_cases.md
+Status: ⬜ Not Started | 🟡 In Progress | ✅ Complete
 ```
 
 ---
 
-## 🎯 Production Readiness Roadmap
+## 🎯 Success Criteria
 
-### Phase 1: Complete Core Functionality (1-2 weeks)
+### STT Success:
+- ✅ Transcribe Persian audio with <10% WER
+- ✅ Process within 2x real-time (1 min audio → 2 min processing)
+- ✅ Auto-create activities from transcriptions
+- ✅ 10+ tests passing
 
-**Priority: CRITICAL**
+### RAG Success:
+- ✅ Semantic search returns relevant deals >80% accuracy
+- ✅ Q&A provides correct answers >75% of time
+- ✅ Search latency <500ms
+- ✅ Index stays synchronized with data
+- ✅ 10+ tests passing
 
-#### Week 1: Analytics Service
-- [ ] Implement `analyze_deal_comprehensive()`
-  - Combine deal, activities, sentiment data
-  - Calculate derived metrics
-  - Generate insights
-- [ ] Implement `analyze_portfolio_overview()`
-  - Aggregate statistics
-  - Activity pattern analysis
-  - Sentiment distribution
-- [ ] Implement health scoring algorithm
-  - Define scoring components
-  - Apply weights from AnalysisSettings
-  - Calculate risk indicators
-- [ ] Implement `_create_activity_timeline()`
-  - Sort chronologically
-  - Identify milestones
-  - Calculate durations
-
-#### Week 2: Database & Integration
-- [ ] Create database schema files
-  - Initial schema SQL
-  - Migration scripts
-  - Seed data
-- [ ] Set up Alembic for migrations
-  - Initialize Alembic
-  - Create migration templates
-  - Version control
-- [ ] Integrate Redis caching
-  - Create CacheService
-  - Implement caching decorators
-  - Cache sentiment results
-  - Cache analytics queries
-- [ ] Test data migration utility
-  - Test with real CSV data
-  - Validate data integrity
-  - Performance testing
-
-### Phase 2: Testing & Quality Assurance (1 week)
-
-**Priority: HIGH**
-
-#### Unit Tests (3 days)
-- [ ] Database layer tests
-  - Connection management
-  - Query execution
-  - Repository operations
-- [ ] Service layer tests
-  - DealService methods
-  - SentimentService with mock model
-  - Analytics calculations
-- [ ] MCP server tests
-  - Handler routing
-  - Schema validation
-  - Response formatting
-
-#### Integration Tests (2 days)
-- [ ] End-to-end MCP tool calls
-- [ ] Database → Service → API flow
-- [ ] Gradio interface functionality
-- [ ] Docker container builds
-
-#### Test Infrastructure (2 days)
-- [ ] Set up pytest configuration
-- [ ] Create test fixtures
-- [ ] Mock external dependencies
-- [ ] Set up coverage reporting (target: 80%+)
-
-### Phase 3: Production Infrastructure (1-2 weeks)
-
-**Priority: HIGH**
-
-#### Security (3-4 days)
-- [ ] Implement authentication
-  - API key system for MCP
-  - Session management for Gradio
-  - JWT tokens
-- [ ] Add authorization
-  - Role-based access control
-  - Permission checks
-  - Deal ownership validation
-- [ ] Security hardening
-  - Rate limiting
-  - Input validation
-  - SQL injection review
-  - XSS prevention
-  - CORS configuration
-- [ ] Secrets management
-  - Move from .env to vault
-  - Rotate credentials
-  - Encryption at rest
-
-#### Monitoring (2-3 days)
-- [ ] Prometheus metrics
-  - Request counters
-  - Latency histograms
-  - Error rates
-  - Model performance
-- [ ] Logging infrastructure
-  - Structured logging
-  - Log aggregation
-  - Request tracing
-- [ ] Error tracking
-  - Sentry integration
-  - Error alerting
-  - Stack trace capture
-- [ ] Dashboards
-  - Grafana setup
-  - Key metrics visualization
-  - Alert rules
-
-#### Deployment (2-3 days)
-- [ ] Production Nginx config
-  - SSL/TLS setup
-  - Load balancing
-  - Request buffering
-  - Compression
-- [ ] Environment configs
-  - development.env
-  - staging.env
-  - production.env
-- [ ] CI/CD pipeline
-  - GitHub Actions or GitLab CI
-  - Automated testing
-  - Docker image building
-  - Automated deployment
-- [ ] Database backup
-  - Automated backup script
-  - Backup verification
-  - Restore procedures
-  - Retention policy
-
-### Phase 4: Documentation (Ongoing)
-
-**Priority: MEDIUM**
-
-#### Week 1-2: Core Documentation
-- [ ] API documentation
-  - MCP protocol reference
-  - Tool descriptions with examples
-  - Resource schemas
-- [ ] Deployment guide
-  - System requirements
-  - Step-by-step installation
-  - Configuration reference
-  - Troubleshooting guide
-
-#### Week 3-4: User & Developer Docs
-- [ ] Developer guide
-  - Architecture overview
-  - Code organization
-  - Adding new features
-  - Testing guidelines
-  - Contributing guide
-- [ ] User guide
-  - Gradio interface walkthrough
-  - Common use cases
-  - FAQ
-  - Screenshots/videos
-
-### Phase 5: Performance Optimization (As Needed)
-
-**Priority: LOW (unless performance issues identified)**
-
-#### Database Optimization
-- [ ] Query optimization
-  - Identify slow queries
-  - Add/optimize indexes
-  - Query plan analysis
-- [ ] Connection pooling tuning
-- [ ] Read replicas for analytics
-
-#### Caching Strategy
-- [ ] Cache warming on startup
-- [ ] Intelligent cache invalidation
-- [ ] Cache hit rate monitoring
-
-#### Model Optimization
-- [ ] Model quantization for faster inference
-- [ ] Batch processing optimization
-- [ ] GPU support (if available)
-
-#### API Optimization
-- [ ] Response pagination
-- [ ] Field filtering
-- [ ] Async processing for heavy operations
-- [ ] Request queuing
+### MoE Success:
+- ✅ Router classifies correctly >90% of time
+- ✅ All 4 experts functional
+- ✅ Latency <2 seconds end-to-end
+- ✅ Multi-expert mode working
+- ✅ 20+ tests passing
 
 ---
 
-## 📊 Current Status Summary
+## 🚀 Getting Started
 
-### Completion Percentage by Component
-
-| Component | Status | Completion | Notes |
-|-----------|--------|------------|-------|
-| **Database Layer** | ✅ | 95% | Missing formal migrations |
-| **Data Models** | ✅ | 100% | Complete and functional |
-| **Repositories** | ✅ | 100% | Well-structured |
-| **Deal Service** | ✅ | 100% | Fully implemented |
-| **Sentiment Service** | ✅ | 95% | Needs Redis integration |
-| **Analytics Service** | 🔴 | 20% | CRITICAL: Incomplete |
-| **MCP Server** | ✅ | 90% | Depends on Analytics |
-| **Tool Handlers** | ✅ | 100% | Complete |
-| **Resource Handlers** | ✅ | 100% | Complete |
-| **Gradio Interface** | ✅ | 100% | Functional |
-| **Configuration** | ✅ | 90% | Needs secrets mgmt |
-| **Docker Setup** | ✅ | 80% | Needs production config |
-| **Testing** | 🔴 | 0% | Not started |
-| **Documentation** | 🟡 | 30% | Basic README only |
-| **Security** | 🔴 | 10% | Not production-ready |
-| **Monitoring** | 🔴 | 5% | Logging only |
-
-**Overall Project Completion: ~65%**
-
-### Blocking Issues
-
-1. **CRITICAL:** Analytics Service incomplete - blocks full MCP functionality
-2. **HIGH:** No test coverage - risky for production
-3. **HIGH:** No authentication - security vulnerability
-4. **MEDIUM:** Missing database migrations - deployment inconsistency
-5. **MEDIUM:** Redis defined but not integrated - performance impact
-
----
-
-## 💡 Architecture Strengths
-
-### What's Working Well
-
-1. **Clean Separation of Concerns**
-   - Clear layering (Data → Repository → Service → API)
-   - Each layer has single responsibility
-   - Easy to test and maintain
-
-2. **Repository Pattern**
-   - Abstracts database operations
-   - Easy to swap database implementations
-   - Testable without database
-
-3. **Service-Oriented Design**
-   - Business logic isolated in services
-   - Reusable across MCP and web interfaces
-   - Easy to extend with new features
-
-4. **MCP Protocol Implementation**
-   - Proper tool and resource handlers
-   - Schema validation
-   - Clean async initialization
-
-5. **Dual Interface Support**
-   - MCP protocol for AI assistants
-   - Gradio for human users
-   - Both use same backend services
-
-6. **Configuration Management**
-   - Centralized settings
-   - Feature flags for easy toggling
-   - Environment-based configuration
-
-7. **Docker Support**
-   - Multi-service orchestration
-   - Easy local development
-   - Ready for containerized deployment
-
-### Design Patterns Used
-
-- **Repository Pattern** - Data access abstraction
-- **Service Pattern** - Business logic encapsulation
-- **Factory Pattern** - Object creation (create_repositories, create_mcp_server)
-- **Dependency Injection** - Services receive dependencies in constructor
-- **Strategy Pattern** - Different sentiment models can be swapped
-- **Singleton Pattern** - Database manager singleton
-- **Template Method** - BaseService for common functionality
-
----
-
-## 🔧 Technology Stack
-
-### Core Technologies
-- **Language:** Python 3.11+
-- **Database:** PostgreSQL 15+
-- **Cache:** Redis 7
-- **Web Server:** Nginx 1.25
-- **ML Framework:** Hugging Face Transformers
-- **MCP:** Model Context Protocol SDK
-- **Web UI:** Gradio 4.0+
-
-### Key Python Libraries
-- **Database:** psycopg2-binary, SQLAlchemy
-- **Data:** pandas, numpy
-- **ML/NLP:** transformers, torch, tokenizers
-- **Visualization:** plotly
-- **Networking:** paramiko (SSH tunnels)
-- **Configuration:** python-dotenv
-- **Async:** asyncio, aiofiles
-
-### Development Tools (Needed)
-- **Testing:** pytest, pytest-asyncio, pytest-cov
-- **Linting:** black, isort, flake8, mypy
-- **Documentation:** Sphinx, mkdocs
-- **CI/CD:** GitHub Actions / GitLab CI
-- **Monitoring:** Prometheus, Grafana, Sentry
-
----
-
-## 🚀 Quick Start Guide
-
-### Prerequisites
+**Day 1 starts with:**
 ```bash
-# System requirements
-- Python 3.11+
-- PostgreSQL 15+
-- Redis 7+ (optional but recommended)
-- Docker & Docker Compose (for containerized deployment)
-- 4GB+ RAM
-- 10GB+ disk space (for models)
-```
+# 1. Create feature branch
+git checkout -b feature/stt-service
 
-### Installation
+# 2. Install dependencies
+pip install openai-whisper soundfile librosa
 
-#### Option 1: Local Development
-```bash
-# 1. Clone repository
-git clone <repository-url>
-cd persian-deal-analyzer
+# 3. Create service file
+touch services/stt_service.py
 
-# 2. Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Set up environment variables
-cp .env.example .env
-# Edit .env with your database credentials
-
-# 5. Set up database
-python scripts/setup_db.py  # TODO: Create this script
-
-# 6. Run migrations
-python scripts/migrate.py   # TODO: Create this script
-
-# 7. (Optional) Import sample data
-python models/simplified_migration_utility.py
-
-# 8. Run MCP server
-python main.py
-
-# 9. (In another terminal) Run Gradio interface
-python launch_gradio.py
-```
-
-#### Option 2: Docker
-```bash
-# 1. Clone repository
-git clone <repository-url>
-cd persian-deal-analyzer
-
-# 2. Create .env file
-cp .env.example .env
-# Edit .env with your settings
-
-# 3. Build and start services
-docker-compose up -d
-
-# 4. Check status
-docker-compose ps
-
-# 5. View logs
-docker-compose logs -f
-
-# Access Gradio interface at http://localhost:7860
-# MCP server available for protocol connections
-```
-
-### Verification
-```bash
-# Test database connection
-python -c "from database.database import test_database_connection; test_database_connection()"
-
-# Test sentiment model loading
-python -c "from services.sentiment_service import SentimentService; import asyncio; s = SentimentService(); asyncio.run(s.initialize()); print('Model loaded:', s.model_loaded)"
-
-# Check Gradio interface
-curl http://localhost:7860
+# 4. Start coding!
 ```
 
 ---
 
-## 📈 Performance Considerations
+## ❓ Decision Points
 
-### Current Limitations
-1. **Sentiment Model Loading:** ~5-10 seconds on first request
-2. **No Query Caching:** Repeated queries hit database
-3. **Synchronous Processing:** Sentiment analysis blocks requests
-4. **No Connection Pooling Limits:** Can exhaust database connections
+Throughout implementation, you'll need to decide:
 
-### Optimization Opportunities
-1. **Model Preloading:** Load sentiment model at startup
-2. **Redis Caching:** Cache frequent queries and sentiment results
-3. **Async Processing:** Queue sentiment analysis with Celery
-4. **Query Optimization:** Add indexes, optimize N+1 queries
-5. **Response Pagination:** Limit large result sets
-6. **Model Quantization:** Reduce model size for faster inference
-7. **Read Replicas:** Separate analytics queries from OLTP
+### STT Decisions:
+- Whisper model size (medium vs large)?
+- CPU or GPU inference?
+- Real-time vs batch processing?
 
-### Expected Performance (Estimated)
-- **Sentiment Analysis:** ~100-500ms per text (CPU), ~50-100ms (GPU)
-- **Deal Query:** ~10-50ms (with indexes)
-- **Analytics Dashboard:** ~200-500ms (needs optimization)
-- **Concurrent Users:** ~10-50 (current), ~100-500 (with optimization)
+### RAG Decisions:
+- Qwen2 model size (1.5B, 7B, or 14B)?
+- How many documents to retrieve (top_k)?
+- Context window size for Qwen2?
+
+### MoE Decisions:
+- Rule-based or ML-based router?
+- Train router from scratch or use pre-trained?
+- Which specific models for each expert?
+
+**Recommendation:** Start simple, then upgrade if needed!
 
 ---
 
-## 🔐 Security Considerations
+**Ready to start? Begin with Day 1: STT Setup!** 🚀
 
-### Current Security Posture: 🔴 **NOT PRODUCTION-READY**
-
-#### Vulnerabilities
-1. **No Authentication:** Anyone can access MCP server and Gradio interface
-2. **No Authorization:** No permission checks on data access
-3. **Credentials in .env:** Database passwords in plain text
-4. **No Rate Limiting:** Susceptible to DoS attacks
-5. **No Input Sanitization:** Potential injection risks
-6. **No HTTPS:** Data transmitted in plain text
-7. **No Audit Logging:** Can't track who did what
-
-#### Remediation Required Before Production
-- [ ] Implement authentication (API keys, JWT)
-- [ ] Add RBAC for authorization
-- [ ] Use secrets manager (HashiCorp Vault, AWS Secrets Manager)
-- [ ] Add rate limiting (per IP, per user)
-- [ ] Validate and sanitize all inputs
-- [ ] Set up SSL/TLS with Let's Encrypt
-- [ ] Implement audit logging
-- [ ] Regular security scanning (Snyk, OWASP ZAP)
-- [ ] Penetration testing
-
----
-
-## 📞 Support & Contribution
-
-### Getting Help
-- **Issues:** File issues in repository
+**Questions or need guidance? Just ask!** 📝ss
