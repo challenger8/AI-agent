@@ -10,30 +10,27 @@ from typing import Optional
 from mcp_spec.handlers.tool_handlers import ToolHandlers 
 from mcp_spec.handlers.tool_handlers import ToolHandlers
 from mcp_spec.handlers.resource_handlers import ResourceHandlers
+from models.repositories import RepositoryManager
 from database.database import create_database_manager
 from utils.logging_config import setup_logging, get_logger
 import logging
+import sys
+from pathlib import Path
+from mcp.server import Server
+from mcp.server.stdio import stdio_server  
+from mcp.server.models import InitializationOptions
 # MCP imports - Fixed to avoid conflicts with local module
-try:
-    # Import from the actual MCP package with explicit paths
-    from mcp.server import Server
-    from mcp.server.stdio import stdio_server  
-    from mcp.server.models import InitializationOptions
-except ImportError as e:
-    raise ImportError("Install MCP: pip install mcp") from e
+
 
 # Database imports - Fixed
 try:
-    import sys
-    from pathlib import Path
-    
-    # Add project root to path
+ 
     project_root = Path(__file__).parent.parent
     sys.path.insert(0, str(project_root))
     
  
     def create_repositories(db_manager):
-        return {"placeholder": "repositories not implemented yet"}
+        return RepositoryManager(db_manager)
             
 except ImportError as e:
     raise ImportError(f"Database modules required: {e}") from e
@@ -98,9 +95,7 @@ except ImportError:
         async def handle_tool_call(self, name, arguments):
             return [{"type": "text", "text": f"Tool {name} not implemented"}]
 
-try:
-    from handlers.resource_handlers import ResourceHandlers
-except ImportError:
+
     class ResourceHandlers:
         def __init__(self, analytics_service=None, sentiment_service=None):
             pass
