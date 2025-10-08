@@ -94,7 +94,49 @@ class FeatureFlags:
     ADVANCED_ANALYTICS_ENABLED = True
     CACHING_ENABLED = True
     DETAILED_LOGGING_ENABLED = False
+    STT_ENABLED = True 
+class STTSettings:
+    """Speech-to-Text configuration"""
+    
+    # Model selection
+    MODEL_NAME = "m3hrdadfi/whisper-small-fa"  # Options: small-fa, medium-fa, large-fa
+    MODEL_SIZE = "small"  # small (~244MB), medium (~769MB), large (~1.5GB)
+    
+    # Audio processing
+    AUDIO_DIR = PROJECT_ROOT / "audio_files"
+    SUPPORTED_FORMATS = ['.mp3', '.wav', '.m4a', '.flac', '.ogg', '.webm']
+    MAX_AUDIO_SIZE_MB = 100
+    SAMPLE_RATE = 16000  # Whisper expects 16kHz
+    
+    # Transcription settings
+    LANGUAGE = "fa"  # Persian/Farsi
+    TASK = "transcribe"  # Options: transcribe, translate
+    BEAM_SIZE = 5
+    BEST_OF = 5
+    TEMPERATURE = 0.0
+    
+    # Performance
+    USE_GPU = True  # Set to False if no GPU available
+    COMPUTE_TYPE = "float16"  # Options: float16, float32, int8
+    BATCH_SIZE = 1
+    
+    # Cache settings
+    CACHE_TRANSCRIPTIONS = True
+    CACHE_TTL_SECONDS = 3600 * 24 * 7  # 1 week
+    
+    @classmethod
+    def ensure_directories(cls):
+        """Create necessary directories"""
+        cls.AUDIO_DIR.mkdir(exist_ok=True)
 
+
+def get_stt_available() -> bool:
+    """Check if STT is available"""
+    try:
+        import whisper
+        return FeatureFlags.STT_ENABLED
+    except ImportError:
+        return False
 def get_sentiment_available() -> bool:
     """Check if sentiment analysis is available"""
     try:

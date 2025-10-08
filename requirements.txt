@@ -1,11 +1,118 @@
+# ============================================
+# CORE DEPENDENCIES
+# ============================================
+pip
+# Web Interface & Visualization
 gradio
-mcp
-pandas
 plotly
+pandas
+
+# MCP Protocol
+mcp
+
+# Environment & Configuration
 python-dotenv
+
+# Database & ORM
 SQLAlchemy
-sshtunnel
-transformers
 psycopg2-binary
-python-dotenv
+sshtunnel
+
+# Caching
+redis
+hiredis
+
+# ============================================
+# MACHINE LEARNING & AI (EXISTING)
+# ============================================
+
+# Transformers & Deep Learning
+transformers
+torch
+torchvision
+torchaudio
 accelerate
+tokenizers
+huggingface-hub
+safetensors
+
+# Persian NLP
+
+# ============================================
+# PHASE 1: SPEECH-TO-TEXT (STT)
+# ============================================
+
+# Whisper Models (Base + Persian Support via HF Hub)
+openai-whisper
+faster-whisper
+
+# Audio Processing
+librosa
+soundfile
+ffmpeg-python
+pydub
+audioread
+
+# ============================================
+# PHASE 2: RAG SYSTEM
+# ============================================
+
+# Vector Database & Embeddings
+chromadb
+sentence-transformers
+faiss-cpu
+
+# LangChain Framework
+langchain
+langchain-community
+langchain-core
+
+# Document Processing
+pypdf
+python-docx
+unstructured
+
+# ============================================
+# PHASE 3: MIXTURE OF EXPERTS (MoE)
+# ============================================
+
+# ML Utilities (for router training)
+scikit-learn
+xgboost
+lightgbm
+
+# Additional NLP Models
+spacy
+
+# ============================================
+# TESTING & DEVELOPMENT
+# ============================================
+
+pytest
+pytest-asyncio
+pytest-cov
+black
+flake8
+mypy
+
+# ============================================
+# UTILITIES
+# ============================================
+
+# Async Support
+aiofiles
+nest-asyncio
+asyncio
+
+# Data Processing
+numpy
+
+# Logging & Monitoring
+structlog
+coloredlogs
+
+# Date/Time
+python-dateutil
+
+# Progress Bars
+tqdm
