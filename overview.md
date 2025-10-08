@@ -274,16 +274,18 @@ persian-deal-analyzer/
 
 ---
 
-## 🚀 Quick Start (Current System)
+## 🚀 Quick Start (Current System with STT)
 
 ```bash
 # 1. Start services
 docker-compose up -d  # Redis + PostgreSQL
 
-# 2. Run MCP server
+# 2. Run MCP server (automatically initializes STT)
 python main.py
+# On first run: Downloads vhdm/whisper-large-fa-v1 (~3GB)
+# Subsequent runs: Loads from cache instantly
 
-# 3. Run Gradio interface (includes STT)
+# 3. Run Gradio interface (includes STT tab)
 python launch_gradio.py
 
 # 4. Run all tests (including STT)
@@ -291,6 +293,7 @@ pytest tests/ --cov
 
 # 5. Test STT specifically
 python tests/manual/test_stt_manual.py
+pytest tests/integration/test_stt_mcp_integration.py -v
 ```
 
 ---
