@@ -220,7 +220,7 @@ models/models--*/
 # Logs directory
 logs/
 *.log
-
+*.mp3
 # Large PDF files
 *.pdf
 *.sh
