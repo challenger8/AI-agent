@@ -20,7 +20,13 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server  
 from mcp.server.models import InitializationOptions
 # MCP imports - Fixed to avoid conflicts with local module
-
+from mcp_spec.schemas.tool_schemas import (
+    # ... existing imports ...
+    TRANSCRIBE_AUDIO_SCHEMA,
+    TRANSCRIBE_BATCH_SCHEMA,
+    VALIDATE_AUDIO_SCHEMA,
+    LIST_AUDIO_FILES_SCHEMA
+)
 
 # Database imports - Fixed
 try:

@@ -25,7 +25,7 @@ hiredis
 # ============================================
 # MACHINE LEARNING & AI (EXISTING)
 # ============================================
-
+whisper
 # Transformers & Deep Learning
 transformers
 torch
@@ -35,8 +35,9 @@ accelerate
 tokenizers
 huggingface-hub
 safetensors
-
+tensorflow
 # Persian NLP
+
 
 # ============================================
 # PHASE 1: SPEECH-TO-TEXT (STT)

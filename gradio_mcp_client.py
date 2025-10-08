@@ -3,6 +3,9 @@ Gradio client for Deal Activity Sentiment Analyzer MCP Server
 """
 import asyncio
 import json
+from config.settings import STTSettings
+from pathlib import Path
+import shutil
 import gradio as gr
 import pandas as pd
 from typing import Dict, List, Optional, Tuple
@@ -12,10 +15,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 class MCPClient:
     """MCP Client for communicating with the deal activity sentiment analyzer server"""
     
@@ -284,6 +287,51 @@ class MCPClient:
         except Exception as e:
             logger.error(f"Trends error: {e}")
             return {"error": f"Trend analysis failed: {str(e)}"}
+    async def transcribe_audio_file(self, audio_file_path: str, language: str = "fa"):
+        """Transcribe audio file"""
+        try:
+            if not hasattr(self, 'server') or not self.server.tool_handlers:
+                return {"error": "Server not connected"}
+            
+            # Get filename from path
+            audio_file = Path(audio_file_path).name
+            
+            # Call transcribe tool via MCP
+            result = await self.server.tool_handlers.handle_tool_call(
+                'transcribe_audio',
+                {'audio_file': audio_file, 'language': language}
+            )
+            
+            if result and len(result) > 0:
+                import json
+                return json.loads(result[0].text)
+            
+            return {"error": "No response from server"}
+            
+        except Exception as e:
+            logger.error(f"Transcription error: {e}")
+            return {"error": str(e)}
+    
+    async def list_audio_files(self):
+        """List available audio files"""
+        try:
+            if not hasattr(self, 'server') or not self.server.tool_handlers:
+                return {"error": "Server not connected"}
+            
+            result = await self.server.tool_handlers.handle_tool_call(
+                'list_audio_files',
+                {}
+            )
+            
+            if result and len(result) > 0:
+                import json
+                return json.loads(result[0].text)
+            
+            return {"error": "No response from server"}
+            
+        except Exception as e:
+            logger.error(f"List files error: {e}")
+            return {"error": str(e)}
 
 # Global MCP client instance
 mcp_client = MCPClient()
@@ -479,7 +527,195 @@ def get_trends_data(period):
                 summary += f"{key.replace('_', ' ').title()}: {value}\n"
     
     return summary, fig
+def upload_audio_file(file):
+    """Handle audio file upload"""
+    if file is None:
+        return "❌ No file uploaded", None
+    
+    try:
+        # Copy file to audio_files directory
+        audio_dir = STTSettings.AUDIO_DIR
+        audio_dir.mkdir(exist_ok=True)
+        
+        # Get filename
+        file_path = Path(file.name)
+        dest_path = audio_dir / file_path.name
+        
+        # Copy file
+        shutil.copy(file.name, dest_path)
+        
+        return f"✅ Uploaded: {file_path.name}", str(dest_path)
+        
+    except Exception as e:
+        return f"❌ Upload failed: {str(e)}", None
 
+
+def list_available_audio():
+    """List available audio files"""
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    result = loop.run_until_complete(mcp_client.list_audio_files())
+    
+    if "error" in result:
+        return f"❌ Error: {result['error']}"
+    
+    files = result.get('files', [])
+    
+    if not files:
+        return "📭 No audio files found in audio_files/ directory"
+    
+    output = f"## 📂 Available Audio Files ({len(files)} total)\n\n"
+    
+    for file in files:
+        output += f"- **{file['name']}** ({file['size_mb']}MB)\n"
+    
+    return output
+
+def upload_audio_file(file):
+    """Handle audio file upload"""
+    if file is None:
+        return "❌ No file uploaded", None
+    
+    try:
+        # Copy file to audio_files directory
+        audio_dir = STTSettings.AUDIO_DIR
+        audio_dir.mkdir(exist_ok=True)
+        
+        # Get filename
+        file_path = Path(file.name)
+        dest_path = audio_dir / file_path.name
+        
+        # Copy file
+        import shutil
+        shutil.copy(file.name, dest_path)
+        
+        return f"✅ Uploaded: {file_path.name}", str(dest_path)
+        
+    except Exception as e:
+        return f"❌ Upload failed: {str(e)}", None
+
+def transcribe_audio(audio_file_path, language):
+    """Transcribe audio file - synchronous wrapper"""
+    if not audio_file_path:
+        return "❌ No audio file selected", None
+    
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    result = loop.run_until_complete(
+        mcp_client.transcribe_audio_file(audio_file_path, language)
+    )
+    
+    if "error" in result:
+        return f"❌ Error: {result['error']}", None
+    
+    if result.get("success"):
+        # Format output
+        output = f"""
+## ✅ Transcription Successful
+
+**File:** {result.get('audio_file')}  
+**Language:** {result.get('language')}  
+**Duration:** {result.get('duration_seconds', 0):.2f} seconds  
+**Model:** {result.get('model')}
+
+### 📝 Transcription:
+
+{result.get('transcription')}
+"""
+        return output, result.get('transcription')
+    
+    return "❌ Transcription failed", None
+
+def list_available_audio():
+    """List available audio files"""
+    try:
+        # Check if server is connected
+        if not hasattr(mcp_client, 'server') or mcp_client.server is None:
+            return "⚠️ **Server not connected**\n\nPlease connect to the server first in the 'Server Connection' tab."
+        
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    result = loop.run_until_complete(mcp_client.list_audio_files())
+    
+    if "error" in result:
+        return f"❌ Error: {result['error']}"
+    
+    files = result.get('files', [])
+    
+    if not files:
+        return "📭 No audio files found in audio_files/ directory"
+    
+    output = f"## 📂 Available Audio Files ({len(files)} total)\n\n"
+    
+    for file in files:
+        output += f"- **{file['name']}** ({file['size_mb']}MB)\n"
+    
+    return output
+def list_audio_with_autoconnect():
+    """List audio files, auto-connect if needed"""
+    # Check if connected, if not try to connect
+    if not hasattr(mcp_client, 'server') or mcp_client.server is None:
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        success, message = loop.run_until_complete(mcp_client.connect_to_server())
+        if not success:
+            return f"⚠️ **Could not connect to server**\n\n{message}"
+    
+    return list_available_audio()
+def transcribe_audio(audio_file_path, language):
+    """Transcribe audio file - synchronous wrapper"""
+    if not audio_file_path:
+        return "❌ No audio file selected", None
+    
+    # Check if server is connected
+    if not hasattr(mcp_client, 'server') or mcp_client.server is None:
+        return "⚠️ **Server not connected**\n\nPlease connect to the server first in the 'Server Connection' tab.", None
+    
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    result = loop.run_until_complete(
+        mcp_client.transcribe_audio_file(audio_file_path, language)
+    )
+    
+    if "error" in result:
+        return f"❌ Error: {result['error']}", None
+    
+    if result.get("success"):
+        # Format output
+        output = f"""
+## ✅ Transcription Successful
+
+**File:** {result.get('audio_file')}  
+**Language:** {result.get('language')}  
+**Duration:** {result.get('duration_seconds', 0):.2f} seconds  
+**Model:** {result.get('model')}
+
+### 📝 Transcription:
+
+{result.get('transcription')}
+"""
+        return output, result.get('transcription')
+    
+    return "❌ Transcription failed", None
 # Create Gradio interface
 with gr.Blocks(title="Deal Activity Sentiment Analyzer", theme=gr.themes.Soft()) as app:
     gr.HTML("<h1>🏢 Deal Activity Sentiment Analyzer</h1>")
@@ -577,6 +813,86 @@ with gr.Blocks(title="Deal Activity Sentiment Analyzer", theme=gr.themes.Soft())
             inputs=[period_select],
             outputs=[trends_summary, trends_chart]
         )
+    with gr.Tab("🎤 Audio Transcription (STT)"):
+        gr.Markdown("""
+        ## Speech-to-Text for Persian Audio
+        Upload audio files or transcribe existing files from the audio_files/ directory.
+        """)
+        
+        with gr.Row():
+            with gr.Column(scale=1):
+                gr.Markdown("### 📤 Upload Audio File")
+                
+                audio_upload = gr.File(
+                    label="Upload Audio",
+                    file_types=[".mp3", ".wav", ".m4a", ".flac", ".ogg", ".webm"],
+                    type="filepath"
+                )
+                
+                upload_btn = gr.Button("Upload", variant="secondary")
+                upload_status = gr.Markdown("")
+                uploaded_path = gr.Textbox(visible=False)
+                
+                gr.Markdown("---")
+                
+                gr.Markdown("### 📂 Available Files")
+                refresh_files_btn = gr.Button("Refresh File List", variant="secondary")
+                files_list = gr.Markdown("")
+            
+            with gr.Column(scale=2):
+                gr.Markdown("### 🎯 Transcribe Audio")
+                
+                audio_file_input = gr.Textbox(
+                    label="Audio File Path",
+                    placeholder="Path to audio file or upload above",
+                    lines=1
+                )
+                
+                language_audio = gr.Dropdown(
+                    choices=[("Persian (فارسی)", "fa"), ("English", "en")],
+                    value="fa",
+                    label="Language"
+                )
+                
+                transcribe_btn = gr.Button("🎤 Transcribe Audio", variant="primary", size="lg")
+                
+                transcription_output = gr.Markdown(label="Transcription Result")
+                
+                with gr.Accordion("📥 Download Transcription", open=False):
+                    transcription_text = gr.Textbox(
+                        label="Plain Text",
+                        lines=10,
+                        max_lines=20
+                    )
+                    download_btn = gr.Button("Download as TXT", variant="secondary")
+        
+        # Event handlers for STT tab
+        upload_btn.click(
+            upload_audio_file,
+            inputs=[audio_upload],
+            outputs=[upload_status, uploaded_path]
+        )
+        
+        # Auto-fill path when file uploaded
+        uploaded_path.change(
+            lambda x: x if x else "",
+            inputs=[uploaded_path],
+            outputs=[audio_file_input]
+        )
+        
+        refresh_files_btn.click(
+            list_audio_with_autoconnect,
+            outputs=[files_list]
+        )
+        
+        transcribe_btn.click(
+            transcribe_audio,
+            inputs=[audio_file_input, language_audio],
+            outputs=[transcription_output, transcription_text]
+        )
+        
+        # Auto-refresh file list on tab load
+        # app.load(list_available_audio, outputs=[files_list])
 
 def run_gradio_app():
     """Run the Gradio application"""
@@ -590,6 +906,7 @@ def run_gradio_app():
         debug=True,
         show_error=True
     )
+    app.load(connect_server, outputs=[server_status, connection_msg])
 
 if __name__ == "__main__":
     run_gradio_app()

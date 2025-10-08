@@ -5,7 +5,55 @@ Tool input schemas for MCP server
 """
 
 from typing import Dict, Any
+TRANSCRIBE_AUDIO_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "audio_file": {
+            "type": "string",
+            "description": "Name of the audio file in the audio_files/ directory (e.g., 'meeting.mp3')"
+        },
+        "language": {
+            "type": "string",
+            "description": "Language code (default: 'fa' for Persian/Farsi)",
+            "default": "fa"
+        }
+    },
+    "required": ["audio_file"]
+}
 
+TRANSCRIBE_BATCH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "audio_files": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "List of audio file names in the audio_files/ directory"
+        },
+        "language": {
+            "type": "string",
+            "description": "Language code (default: 'fa' for Persian/Farsi)",
+            "default": "fa"
+        }
+    },
+    "required": ["audio_files"]
+}
+
+LIST_AUDIO_FILES_SCHEMA = {
+    "type": "object",
+    "properties": {},
+    "required": []
+}
+
+VALIDATE_AUDIO_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "audio_file": {
+            "type": "string",
+            "description": "Name of the audio file to validate"
+        }
+    },
+    "required": ["audio_file"]
+}
 # Deal analysis schemas
 ANALYZE_DEAL_SCHEMA = {
     "type": "object",
@@ -105,5 +153,9 @@ def get_tool_schemas() -> Dict[str, Dict[str, Any]]:
         "get_deal_activities_with_sentiment": GET_DEAL_ACTIVITIES_SCHEMA,
         "analyze_text_sentiment": ANALYZE_TEXT_SENTIMENT_SCHEMA,
         "get_sentiment_trends": SENTIMENT_TRENDS_SCHEMA,
-        "analyze_portfolio_health": PORTFOLIO_HEALTH_SCHEMA
+        "analyze_portfolio_health": PORTFOLIO_HEALTH_SCHEMA,
+        "transcribe_audio": TRANSCRIBE_AUDIO_SCHEMA,
+        "transcribe_batch": TRANSCRIBE_BATCH_SCHEMA,
+        "list_audio_files": LIST_AUDIO_FILES_SCHEMA,
+        "validate_audio": VALIDATE_AUDIO_SCHEMA,
     }

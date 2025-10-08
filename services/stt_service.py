@@ -1,7 +1,7 @@
 """
 services/stt_service.py
 -----------------------
-Speech-to-Text service for Persian audio transcription using Whisper-FA
+Speech-to-Text service for Persian audio transcription using OpenAI Whisper
 """
 
 import os
@@ -17,12 +17,11 @@ from config.settings import STTSettings, FeatureFlags, get_stt_available
 from utils.exceptions import ServiceError
 
 class STTService(BaseService):
-    """Persian Speech-to-Text service using Whisper-FA"""
+    """Persian Speech-to-Text service using OpenAI Whisper"""
     
     def __init__(self, repositories=None):
         super().__init__(repositories)
         self.model = None
-        self.processor = None
         self.model_loaded = False
         self.available = get_stt_available()
         self.cache_service = get_cache_service()
@@ -32,7 +31,7 @@ class STTService(BaseService):
     
     async def initialize(self) -> bool:
         """
-        Initialize Whisper-FA model
+        Initialize Whisper model
         
         Returns:
             True if initialization successful, False otherwise
@@ -45,28 +44,24 @@ class STTService(BaseService):
             return True
         
         try:
-            self.logger.info(f"Loading Whisper-FA model: {STTSettings.MODEL_NAME}")
+            self.logger.info(f"Loading Whisper model: {STTSettings.MODEL_SIZE}")
             
-            from transformers import WhisperProcessor, WhisperForConditionalGeneration
+            import whisper
             import torch
-            
-            # Load model and processor
-            self.processor = WhisperProcessor.from_pretrained(STTSettings.MODEL_NAME)
-            self.model = WhisperForConditionalGeneration.from_pretrained(STTSettings.MODEL_NAME)
-            
-            # Move to GPU if available
-            if STTSettings.USE_GPU and torch.cuda.is_available():
-                self.model = self.model.to("cuda")
-                self.logger.info("Model loaded on GPU")
-            else:
-                self.logger.info("Model loaded on CPU")
+            "vhdm/whisper-large-fa-v1"
+            # Load model
+            device = "cuda" if STTSettings.USE_GPU and torch.cuda.is_available() else "cpu"
+            self.model = whisper.load_model(
+                STTSettings.MODEL_SIZE,
+                device=device
+            )
             
             self.model_loaded = True
-            self.logger.info("Whisper-FA model loaded successfully")
+            self.logger.info(f"Whisper model loaded successfully on {device}")
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to load Whisper-FA model: {e}")
+            self.logger.error(f"Failed to load Whisper model: {e}")
             raise ServiceError(f"STT model initialization failed: {e}")
     
     def _get_audio_hash(self, audio_path: Union[str, Path]) -> str:
@@ -76,47 +71,6 @@ class STTService(BaseService):
         # Use file path + modification time for hash
         hash_string = f"{audio_path.name}_{audio_path.stat().st_mtime}"
         return hashlib.md5(hash_string.encode()).hexdigest()
-    
-    def _load_audio(self, audio_path: Union[str, Path]) -> Any:
-        """
-        Load and preprocess audio file
-        
-        Args:
-            audio_path: Path to audio file
-            
-        Returns:
-            Preprocessed audio array
-        """
-        try:
-            import librosa
-            
-            audio_path = Path(audio_path)
-            
-            # Check file exists
-            if not audio_path.exists():
-                raise FileNotFoundError(f"Audio file not found: {audio_path}")
-            
-            # Check file size
-            file_size_mb = audio_path.stat().st_size / (1024 * 1024)
-            if file_size_mb > STTSettings.MAX_AUDIO_SIZE_MB:
-                raise ValueError(
-                    f"Audio file too large: {file_size_mb:.2f}MB "
-                    f"(max: {STTSettings.MAX_AUDIO_SIZE_MB}MB)"
-                )
-            
-            # Load audio
-            self.logger.info(f"Loading audio file: {audio_path.name}")
-            audio, sr = librosa.load(
-                str(audio_path),
-                sr=STTSettings.SAMPLE_RATE,
-                mono=True
-            )
-            
-            return audio
-            
-        except Exception as e:
-            self.logger.error(f"Failed to load audio: {e}")
-            raise ServiceError(f"Audio loading failed: {e}")
     
     async def transcribe_audio(
         self,
@@ -141,6 +95,10 @@ class STTService(BaseService):
         audio_path = Path(audio_path)
         language = language or STTSettings.LANGUAGE
         
+        # Check file exists
+        if not audio_path.exists():
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+        
         # Check cache first
         if use_cache and STTSettings.CACHE_TRANSCRIPTIONS:
             audio_hash = self._get_audio_hash(audio_path)
@@ -152,45 +110,27 @@ class STTService(BaseService):
                 return cached_result
         
         try:
-            # Load audio
-            audio = self._load_audio(audio_path)
-            
-            # Prepare input
             self.logger.info(f"Transcribing audio: {audio_path.name}")
-            input_features = self.processor(
-                audio,
-                sampling_rate=STTSettings.SAMPLE_RATE,
-                return_tensors="pt"
-            ).input_features
             
-            # Move to same device as model
-            if STTSettings.USE_GPU:
-                import torch
-                if torch.cuda.is_available():
-                    input_features = input_features.to("cuda")
-            
-            # Generate transcription
-            predicted_ids = self.model.generate(
-                input_features,
+            # Transcribe using Whisper
+            result = self.model.transcribe(
+                str(audio_path),
                 language=language,
                 task=STTSettings.TASK,
-                num_beams=STTSettings.BEAM_SIZE,
-                temperature=STTSettings.TEMPERATURE
+                beam_size=STTSettings.BEAM_SIZE,
+                best_of=STTSettings.BEST_OF,
+                temperature=STTSettings.TEMPERATURE,
+                fp16=STTSettings.FP16 if STTSettings.USE_GPU else False
             )
             
-            # Decode transcription
-            transcription = self.processor.batch_decode(
-                predicted_ids,
-                skip_special_tokens=True
-            )[0]
-            
             # Prepare result
-            result = {
-                'transcription': transcription,
+            transcription_result = {
+                'transcription': result['text'].strip(),
+                'segments': result.get('segments', []),
+                'language': result.get('language', language),
                 'audio_file': audio_path.name,
-                'language': language,
-                'model': STTSettings.MODEL_NAME,
-                'duration_seconds': len(audio) / STTSettings.SAMPLE_RATE,
+                'model': f"whisper-{STTSettings.MODEL_SIZE}",
+                'duration_seconds': sum(seg['end'] - seg['start'] for seg in result.get('segments', [])),
                 'transcribed_at': datetime.now().isoformat()
             }
             
@@ -198,12 +138,12 @@ class STTService(BaseService):
             if use_cache and STTSettings.CACHE_TRANSCRIPTIONS:
                 self.cache_service.set(
                     cache_key,
-                    result,
+                    transcription_result,
                     ttl=STTSettings.CACHE_TTL_SECONDS
                 )
             
-            self.logger.info(f"Transcription complete: {len(transcription)} characters")
-            return result
+            self.logger.info(f"Transcription complete: {len(transcription_result['transcription'])} characters")
+            return transcription_result
             
         except Exception as e:
             self.logger.error(f"Transcription failed: {e}")
@@ -301,10 +241,6 @@ class STTService(BaseService):
         if self.model is not None:
             del self.model
             self.model = None
-        
-        if self.processor is not None:
-            del self.processor
-            self.processor = None
         
         self.model_loaded = False
         

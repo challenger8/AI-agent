@@ -12,7 +12,8 @@ from config.settings import get_sentiment_available
 from mcp_spec.schemas.tool_schemas import get_tool_schemas
 from utils.logging_config import get_logger
 from utils.exceptions import ServiceError
-
+from services.stt_service import get_stt_service
+from config.settings import STTSettings
 logger = get_logger("tool_handlers")
 
 class ToolHandlers:
@@ -52,7 +53,27 @@ class ToolHandlers:
                 name="analyze_portfolio_health",
                 description="Analyze overall portfolio health metrics",
                 inputSchema=self.schemas["analyze_portfolio_health"]
-            )
+            ),
+            Tool(
+            name="transcribe_audio",
+            description="Transcribe Persian audio file to text using Whisper AI",
+            inputSchema=self.schemas["transcribe_audio"]
+        ),
+        Tool(
+            name="transcribe_batch",
+            description="Transcribe multiple Persian audio files in batch",
+            inputSchema=self.schemas["transcribe_batch"]
+        ),
+        Tool(
+            name="list_audio_files",
+            description="List all audio files available in the audio_files directory",
+            inputSchema=self.schemas["list_audio_files"]
+        ),
+        Tool(
+            name="validate_audio",
+            description="Validate audio file format and compatibility",
+            inputSchema=self.schemas["validate_audio"]
+        ),
         ]
         
         # Add sentiment-specific tools if available
@@ -101,18 +122,24 @@ class ToolHandlers:
                 result = await self._handle_analyze_text_sentiment(arguments)
             elif name == "get_sentiment_trends":
                 result = await self._handle_get_sentiment_trends(arguments)
+            elif name == "transcribe_audio":
+                result = await self._handle_transcribe_audio(arguments)
+            elif name == "transcribe_batch":
+                result = await self._handle_transcribe_batch(arguments)
+            elif name == "list_audio_files":
+                result = await self._handle_list_audio_files(arguments)
+            elif name == "validate_audio":
+                result = await self._handle_validate_audio(arguments)
             else:
-                result = {"error": f"Unknown tool: {name}"}
+                result = json.dumps({"error": f"Unknown tool: {name}"})
+            
             
             return [TextContent(
                 type="text",
-                text=json.dumps(result, ensure_ascii=False, indent=2, default=str)
+                text=result
             )]
             
-        except ServiceError as e:
-            logger.error(f"Service error in tool {name}: {e}")
-            error_result = {"error": f"Service error: {str(e)}"}
-            return [TextContent(type="text", text=json.dumps(error_result, ensure_ascii=False))]
+        
         
         except Exception as e:
             logger.error(f"Unexpected error in tool {name}: {e}")
@@ -247,3 +274,132 @@ class ToolHandlers:
         if self.sentiment_service and not self.sentiment_service.model_loaded:
             logger.info("Loading sentiment model for analysis...")
             await self.sentiment_service.initialize()
+    # ============================================
+    # STT (Speech-to-Text) Tool Handlers - NEW
+    # ============================================
+    
+    async def _handle_transcribe_audio(self, arguments: dict) -> str:
+        """Handle transcribe_audio tool"""
+        audio_file = arguments.get("audio_file")
+        language = arguments.get("language", "fa")
+        
+        if not audio_file:
+            return json.dumps({"error": "audio_file is required"}, ensure_ascii=False)
+        
+        try:
+            stt_service = get_stt_service()
+            
+            if not stt_service.model_loaded:
+                await stt_service.initialize()
+            
+            audio_path = STTSettings.AUDIO_DIR / audio_file
+            
+            if not audio_path.exists():
+                return json.dumps({
+                    "error": f"Audio file not found: {audio_file}",
+                    "audio_directory": str(STTSettings.AUDIO_DIR)
+                }, ensure_ascii=False, indent=2)
+            
+            logger.info(f"Transcribing: {audio_file}")
+            result = await stt_service.transcribe_audio(audio_path, language)
+            
+            response = {
+                "success": True,
+                "audio_file": audio_file,
+                "transcription": result["transcription"],
+                "language": result["language"],
+                "duration_seconds": result["duration_seconds"],
+                "model": result["model"]
+            }
+            
+            return json.dumps(response, ensure_ascii=False, indent=2)
+            
+        except Exception as e:
+            logger.error(f"Transcription failed: {e}")
+            return json.dumps({"error": str(e)}, ensure_ascii=False)
+    
+    async def _handle_transcribe_batch(self, arguments: dict) -> str:
+        """Handle transcribe_batch tool"""
+        audio_files = arguments.get("audio_files", [])
+        language = arguments.get("language", "fa")
+        
+        if not audio_files:
+            return json.dumps({"error": "audio_files required"}, ensure_ascii=False)
+        
+        try:
+            stt_service = get_stt_service()
+            
+            if not stt_service.model_loaded:
+                await stt_service.initialize()
+            
+            audio_paths = [STTSettings.AUDIO_DIR / f for f in audio_files]
+            results = await stt_service.transcribe_batch(audio_paths, language)
+            
+            response = {
+                "success": True,
+                "total_files": len(audio_files),
+                "results": results
+            }
+            
+            return json.dumps(response, ensure_ascii=False, indent=2)
+            
+        except Exception as e:
+            return json.dumps({"error": str(e)}, ensure_ascii=False)
+    
+    async def _handle_list_audio_files(self, arguments: dict) -> str:
+        """Handle list_audio_files tool"""
+        try:
+            audio_dir = STTSettings.AUDIO_DIR
+            
+            if not audio_dir.exists():
+                return json.dumps({
+                    "audio_directory": str(audio_dir),
+                    "exists": False,
+                    "files": []
+                }, ensure_ascii=False, indent=2)
+            
+            audio_files = []
+            for ext in STTSettings.SUPPORTED_FORMATS:
+                audio_files.extend(audio_dir.glob(f"*{ext}"))
+            
+            files_info = [{
+                "name": f.name,
+                "size_mb": round(f.stat().st_size / (1024 * 1024), 2),
+                "extension": f.suffix
+            } for f in audio_files]
+            
+            files_info.sort(key=lambda x: x["name"])
+            
+            return json.dumps({
+                "audio_directory": str(audio_dir),
+                "total_files": len(files_info),
+                "files": files_info,
+                "supported_formats": STTSettings.SUPPORTED_FORMATS
+            }, ensure_ascii=False, indent=2)
+            
+        except Exception as e:
+            return json.dumps({"error": str(e)}, ensure_ascii=False)
+    
+    async def _handle_validate_audio(self, arguments: dict) -> str:
+        """Handle validate_audio tool"""
+        audio_file = arguments.get("audio_file")
+        
+        if not audio_file:
+            return json.dumps({"error": "audio_file required"}, ensure_ascii=False)
+        
+        try:
+            stt_service = get_stt_service()
+            audio_path = STTSettings.AUDIO_DIR / audio_file
+            
+            result = stt_service.validate_audio_file(audio_path)
+            
+            return json.dumps({
+                "audio_file": audio_file,
+                "valid": result["valid"],
+                "errors": result["errors"],
+                "warnings": result["warnings"],
+                "details": result["details"]
+            }, ensure_ascii=False, indent=2)
+            
+        except Exception as e:
+            return json.dumps({"error": str(e)}, ensure_ascii=False)

@@ -98,10 +98,10 @@ class FeatureFlags:
 class STTSettings:
     """Speech-to-Text configuration"""
     
-    # Model selection
-    MODEL_NAME = "m3hrdadfi/whisper-small-fa"  # Options: small-fa, medium-fa, large-fa
-    MODEL_SIZE = "small"  # small (~244MB), medium (~769MB), large (~1.5GB)
-    
+    # Model selection - Use OpenAI Whisper base models
+    # Options: tiny, base, small, medium, large, large-v2, large-v3
+    # MODEL_SIZE = "base"  # tiny (~39MB), base (~74MB), small (~244MB), medium (~769MB), large (~1.5GB)
+    MODEL_NAME = "vhdm/whisper-large-fa-v1"
     # Audio processing
     AUDIO_DIR = PROJECT_ROOT / "audio_files"
     SUPPORTED_FORMATS = ['.mp3', '.wav', '.m4a', '.flac', '.ogg', '.webm']
@@ -116,13 +116,17 @@ class STTSettings:
     TEMPERATURE = 0.0
     
     # Performance
-    USE_GPU = True  # Set to False if no GPU available
-    COMPUTE_TYPE = "float16"  # Options: float16, float32, int8
-    BATCH_SIZE = 1
+    USE_GPU = False  # Set to False if no GPU available
+    FP16 = True  # Use FP16 for faster inference on GPU
     
     # Cache settings
     CACHE_TRANSCRIPTIONS = True
     CACHE_TTL_SECONDS = 3600 * 24 * 7  # 1 week
+    
+    @classmethod
+    def ensure_directories(cls):
+        """Create necessary directories"""
+        cls.AUDIO_DIR.mkdir(exist_ok=True)
     
     @classmethod
     def ensure_directories(cls):
