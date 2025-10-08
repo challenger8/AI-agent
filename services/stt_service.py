@@ -31,7 +31,7 @@ class STTService(BaseService):
     
     async def initialize(self) -> bool:
         """
-        Initialize Whisper model
+        Initialize Whisper model from HuggingFace (matching sentiment pattern)
         
         Returns:
             True if initialization successful, False otherwise
@@ -44,24 +44,75 @@ class STTService(BaseService):
             return True
         
         try:
-            self.logger.info(f"Loading Whisper model: {STTSettings.MODEL_SIZE}")
+            self.logger.info(f"Loading Whisper model: {STTSettings.MODEL_NAME}")
             
-            import whisper
+            from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
             import torch
-            "vhdm/whisper-large-fa-v1"
-            # Load model
-            device = "cuda" if STTSettings.USE_GPU and torch.cuda.is_available() else "cpu"
-            self.model = whisper.load_model(
-                STTSettings.MODEL_SIZE,
-                device=device
+            
+            # Prepare authentication token if available
+            use_auth_token = STTSettings.HF_TOKEN if STTSettings.HF_TOKEN else None
+            
+            # Determine device
+            device = "cuda:0" if STTSettings.USE_GPU and torch.cuda.is_available() else "cpu"
+            torch_dtype = torch.float16 if device != "cpu" else torch.float32
+            
+            self.logger.info(f"Using device: {device}")
+            self.logger.info(f"Cache directory: {STTSettings.CACHE_DIR}")
+            
+            # Load model - will download if not in cache
+            self.logger.info("Loading model (downloading if needed, this may take a while)...")
+            model = AutoModelForSpeechSeq2Seq.from_pretrained(
+                STTSettings.MODEL_NAME,
+                torch_dtype=torch_dtype,
+                low_cpu_mem_usage=True,
+                use_safetensors=True,
+                cache_dir=str(STTSettings.CACHE_DIR),
+                token=use_auth_token  # Use HF token if available
+            )
+            model.to(device)
+            
+            # Load processor
+            self.logger.info("Loading processor...")
+            processor = AutoProcessor.from_pretrained(
+                STTSettings.MODEL_NAME,
+                cache_dir=str(STTSettings.CACHE_DIR),
+                token=use_auth_token
             )
             
+            # Create pipeline
+            self.logger.info("Creating pipeline...")
+            self.pipeline = pipeline(
+                "automatic-speech-recognition",
+                model=model,
+                tokenizer=processor.tokenizer,
+                feature_extractor=processor.feature_extractor,
+                max_new_tokens=128,
+                chunk_length_s=STTSettings.CHUNK_LENGTH_S,
+                batch_size=STTSettings.BATCH_SIZE,
+                return_timestamps=STTSettings.RETURN_TIMESTAMPS,
+                torch_dtype=torch_dtype,
+                device=device,
+            )
+            
+            self.model = model
+            self.processor = processor
             self.model_loaded = True
-            self.logger.info(f"Whisper model loaded successfully on {device}")
+            
+            # Count parameters
+            param_count = sum(p.numel() for p in model.parameters())
+            
+            self.logger.info(f"✅ Whisper model loaded successfully!")
+            self.logger.info(f"   Model: {STTSettings.MODEL_NAME}")
+            self.logger.info(f"   Device: {device}")
+            self.logger.info(f"   Parameters: {param_count:,}")
+            self.logger.info(f"   Cache: {STTSettings.CACHE_DIR}")
+            
             return True
             
         except Exception as e:
             self.logger.error(f"Failed to load Whisper model: {e}")
+            import traceback
+            traceback.print_exc()
             raise ServiceError(f"STT model initialization failed: {e}")
     
     def _get_audio_hash(self, audio_path: Union[str, Path]) -> str:

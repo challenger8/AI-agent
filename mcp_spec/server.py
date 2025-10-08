@@ -19,6 +19,8 @@ from pathlib import Path
 from mcp.server import Server
 from mcp.server.stdio import stdio_server  
 from mcp.server.models import InitializationOptions
+from services.stt_service import get_stt_service, STTService
+from config.settings import get_stt_available
 # MCP imports - Fixed to avoid conflicts with local module
 from mcp_spec.schemas.tool_schemas import (
     # ... existing imports ...
@@ -132,6 +134,7 @@ class PersianDealAnalyzerMCPServer:
         self.repositories: Optional[object] = None
         self.sentiment_service: Optional[SentimentService] = None
         self.analytics_service: Optional[AnalyticsService] = None
+        self.stt_service: Optional[STTService] = None 
         self.tool_handlers: Optional[ToolHandlers] = None
         self.resource_handlers: Optional[ResourceHandlers] = None
         
@@ -154,6 +157,7 @@ class PersianDealAnalyzerMCPServer:
             # Initialize sentiment service
             await self._initialize_sentiment_service()
             
+            await self._initialize_stt_service()
             # Initialize analytics service
             self._initialize_analytics_service()
             
@@ -218,7 +222,25 @@ class PersianDealAnalyzerMCPServer:
             self.logger.error(f"Sentiment service initialization failed: {e}")
             # Continue without sentiment service
             self.sentiment_service = None
-    
+    async def _initialize_stt_service(self):
+        """Initialize STT (Speech-to-Text) service"""
+        if not get_stt_available():
+            self.logger.warning("STT not available - whisper not installed")
+            return
+        
+        try:
+            self.logger.info("Initializing STT service...")
+            self.stt_service = get_stt_service(self.repositories)
+            
+            # Pre-load model for better performance
+            await self.stt_service.initialize()
+            
+            self.logger.info("STT service initialized")
+            
+        except Exception as e:
+            self.logger.error(f"STT service initialization failed: {e}")
+            # Continue without STT service
+            self.stt_service = None
     def _initialize_analytics_service(self):
         """Initialize analytics service"""
         try:
@@ -342,7 +364,9 @@ class PersianDealAnalyzerMCPServer:
             # Cleanup sentiment service
             if self.sentiment_service:
                 self.sentiment_service.clear_cache()
-            
+                
+            if self.stt_service:
+                await self.stt_service.cleanup()
             # Cleanup database
             if self.db_manager:
                 self.db_manager.close()
@@ -359,6 +383,7 @@ class PersianDealAnalyzerMCPServer:
             "server_version": MCPSettings.SERVER_VERSION,
             "database_connected": self.db_manager is not None,
             "sentiment_available": self.sentiment_service is not None and hasattr(self.sentiment_service, 'model_loaded') and self.sentiment_service.model_loaded,
+            "stt_available": self.stt_service is not None and hasattr(self.stt_service, 'model_loaded') and self.stt_service.model_loaded,
             "analytics_ready": self.analytics_service is not None,
             "handlers_initialized": self.tool_handlers is not None and self.resource_handlers is not None
         }

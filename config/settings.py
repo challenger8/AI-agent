@@ -98,10 +98,14 @@ class FeatureFlags:
 class STTSettings:
     """Speech-to-Text configuration"""
     
-    # Model selection - Use OpenAI Whisper base models
-    # Options: tiny, base, small, medium, large, large-v2, large-v3
-    # MODEL_SIZE = "base"  # tiny (~39MB), base (~74MB), small (~244MB), medium (~769MB), large (~1.5GB)
-    MODEL_NAME = "vhdm/whisper-large-fa-v1"
+    # Model configuration - matching sentiment pattern
+    HF_TOKEN = os.getenv('HF_TOKEN')  # Use same token as sentiment
+    MODEL_NAME = "vhdm/whisper-large-fa-v1"  # Persian-optimized Whisper Large
+    USE_TRANSFORMERS = True  # Use HuggingFace transformers
+    
+    # Cache configuration - use project's models directory
+    CACHE_DIR = PROJECT_ROOT / "models"
+    
     # Audio processing
     AUDIO_DIR = PROJECT_ROOT / "audio_files"
     SUPPORTED_FORMATS = ['.mp3', '.wav', '.m4a', '.flac', '.ogg', '.webm']
@@ -111,13 +115,15 @@ class STTSettings:
     # Transcription settings
     LANGUAGE = "fa"  # Persian/Farsi
     TASK = "transcribe"  # Options: transcribe, translate
-    BEAM_SIZE = 5
-    BEST_OF = 5
-    TEMPERATURE = 0.0
+    
+    # Transformers-specific settings
+    CHUNK_LENGTH_S = 30  # Process audio in 30-second chunks
+    BATCH_SIZE = 16
+    RETURN_TIMESTAMPS = True
     
     # Performance
-    USE_GPU = False  # Set to False if no GPU available
-    FP16 = True  # Use FP16 for faster inference on GPU
+    USE_GPU = True  # Set to False if no GPU available
+    TORCH_DTYPE = "float16"  # float16 for GPU, float32 for CPU
     
     # Cache settings
     CACHE_TRANSCRIPTIONS = True
@@ -127,11 +133,7 @@ class STTSettings:
     def ensure_directories(cls):
         """Create necessary directories"""
         cls.AUDIO_DIR.mkdir(exist_ok=True)
-    
-    @classmethod
-    def ensure_directories(cls):
-        """Create necessary directories"""
-        cls.AUDIO_DIR.mkdir(exist_ok=True)
+        cls.CACHE_DIR.mkdir(exist_ok=True)
 
 
 def get_stt_available() -> bool:
