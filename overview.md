@@ -1,384 +1,248 @@
-# Persian Deal Analyzer - Project Overview (Updated)
+# Persian Deal Analyzer - Project Overview
 
-## 📋 Executive Summary
+## What This Project Does
 
-A comprehensive local AI agent for Persian CRM deal analysis with sentiment insights, RAG capabilities, speech-to-text, and mixture of experts architecture. Features both MCP protocol access and Gradio web interface for personal use.
+This is a local AI assistant that helps analyze Persian CRM deals. It understands Persian language, analyzes sentiment in conversations, and provides insights about your business deals. Everything runs on your own computer—no cloud services needed.
 
-**Current Status:** 🟢 **Core Complete + Phase 1 Complete** (~90% complete)
+**Current Status:** The core system is complete and working. We're about 90% done with the planned features.
 
-**Target:** Personal AI agent running locally (no cloud dependencies)
-
----
-
-## 🏗️ Enhanced Architecture
-
-### High-Level Architecture (With Phase 1 Complete)
-
-```
-┌───────────────────────────────────────────────────────────────┐
-│                     Client Layer                               │
-├───────────────────────────────────────────────────────────────┤
-│  MCP Protocol Clients    │  Gradio Web Interface              │
-│  (Claude Desktop, etc)   │  (Browser + Voice Recording)       │
-└──────────┬────────────────┴──────────────┬───────────────────┘
-           │                               │
-           ▼                               ▼
-┌───────────────────────────────────────────────────────────────┐
-│                      API Layer                                 │
-├───────────────────────────────────────────────────────────────┤
-│  MCP Server (mcp_spec/server.py)                              │
-│  - Tool Handlers      - Resource Handlers                      │
-│  - STT Tools ✅       - RAG Tools 🔴      - MoE Routing 🔴   │
-└──────────┬────────────────────────────────────────────────────┘
-           │
-           ▼
-┌───────────────────────────────────────────────────────────────┐
-│              AI Services Layer (UPDATED)                       │
-├───────────────────────────────────────────────────────────────┤
-│                                                                │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │ RAG Service  │  │  STT Service │  │  MoE Router  │       │
-│  │ (🔴 TODO)   │  │  (✅ DONE)   │  │  (🔴 TODO)  │       │
-│  │              │  │              │  │              │       │
-│  │ ChromaDB     │  │ vhdm/whisper │  │ Expert       │       │
-│  │ Embeddings   │  │ large-fa-v1  │  │ Selector     │       │
-│  │ Qwen2        │  │ HF Pipeline  │  │              │       │
-│  └──────────────┘  └──────┬───────┘  └──────────────┘       │
-│                           │                                  │
-│  ┌────────────────────────▼──────────────────────────┐      │
-│  │          Expert Models Pool (MoE)                  │      │
-│  ├───────────────────────────────────────────────────┤      │
-│  │  Expert 1: Sentiment Analysis ✅ (HooshvareLab)   │      │
-│  │  Expert 2: Summarization (🔴 TODO - T5/mT5)      │      │
-│  │  Expert 3: Entity Extraction (🔴 TODO - NER)     │      │
-│  │  Expert 4: Question Answering (🔴 TODO - QA)     │      │
-│  └────────────────────────────────────────────────────┘      │
-│                           │                                  │
-│  ┌────────────────────────▼──────────────────────────┐      │
-│  │         Existing Services (COMPLETE)               │      │
-│  ├───────────────────────────────────────────────────┤      │
-│  │  Deal Service      │  Analytics Service           │      │
-│  │  Sentiment Service │  Cache Service               │      │
-│  └────────────────────────────────────────────────────┘      │
-│                                                                │
-└──────────┬─────────────────────────────────────────────────────┘
-           │
-           ▼
-┌───────────────────────────────────────────────────────────────┐
-│                    Repository Layer                            │
-├───────────────────────────────────────────────────────────────┤
-│  Deal Repo  │  Activity Repo  │  Agent Repo  │  Sentiment    │
-│  🔴 Document Repo (RAG)  │  Audio Storage ✅                  │
-└──────────┬─────────────────────────────────────────────────────┘
-           │
-           ▼
-┌───────────────────────────────────────────────────────────────┐
-│                     Data Layer                                 │
-├───────────────────────────────────────────────────────────────┤
-│  PostgreSQL    │  Redis Cache   │  🔴 ChromaDB   │  Audio ✅  │
-│  (CRM Data)    │  (Fast Access) │  (Vectors)     │  Storage   │
-└───────────────────────────────────────────────────────────────┘
-```
+**Goal:** A personal AI agent for deal analysis that runs entirely on your machine.
 
 ---
 
-## ✅ Currently Complete (90% of Project)
+## How It Works
 
-### Core System - 100% COMPLETE ✅
+Think of this system like a smart filing cabinet with an AI assistant:
 
-1. ✅ **Database Layer** - 100% COMPLETE
-2. ✅ **Data Models** - 100% COMPLETE
-3. ✅ **Repository Layer** - 100% COMPLETE
-4. ✅ **Services Layer** - 100% COMPLETE
-5. ✅ **MCP Server** - 100% COMPLETE
-6. ✅ **Gradio Interface** - 100% COMPLETE
-7. ✅ **Testing Infrastructure** - 100% COMPLETE
-8. ✅ **Configuration & Utilities** - 100% COMPLETE
-9. ✅ **Docker Support** - 90% COMPLETE
+1. **You interact** through either:
+   - A web browser interface (Gradio)
+   - Claude Desktop (MCP protocol)
 
-### Phase 1: Speech-to-Text (STT) - 100% COMPLETE ✅
+2. **The AI processes** your requests using:
+   - Speech-to-text for Persian audio
+   - Sentiment analysis to understand emotions in conversations
+   - Analytics to calculate deal health and provide insights
 
-**Status:** ✅ **FULLY IMPLEMENTED AND TESTED**
-
-**Completed Components:**
-- ✅ STT Service (`services/stt_service.py`)
-  - Persian Whisper model integration (`vhdm/whisper-large-fa-v1`)
-  - HuggingFace transformers pipeline
-  - Audio file validation
-  - Batch processing support
-  - Caching for transcriptions
-  - GPU/CPU support
-
-- ✅ Configuration (`config/settings.py`)
-  - STTSettings class with all parameters
-  - Model configuration
-  - Audio processing settings
-  - Performance optimization options
-
-- ✅ MCP Integration
-  - 4 new tools: `transcribe_audio`, `transcribe_batch`, `list_audio_files`, `validate_audio`
-  - Tool schemas defined
-  - Tool handlers implemented
-  - Full MCP server integration
-
-- ✅ Gradio Interface
-  - New "🎤 Audio Transcription (STT)" tab
-  - Audio file upload widget
-  - File browser and selection
-  - Real-time transcription display
-  - Download transcription feature
-  - Auto-connect functionality
-
-- ✅ Testing
-  - Manual tests (`tests/manual/test_stt_manual.py`)
-  - Integration tests (`tests/integration/test_stt_mcp_integration.py`)
-  - All tests passing
-  - Complete test coverage
-
-**Features:**
-- Transcribe Persian audio files (.mp3, .wav, .m4a, .flac, .ogg, .webm)
-- Support for multiple languages (Persian primary, English secondary)
-- Chunk-based processing for long audio
-- Timestamp generation
-- Cache support for performance
-- Batch processing capability
-- Web UI and MCP API access
+3. **Data is stored** in:
+   - PostgreSQL database (your CRM data)
+   - Redis cache (for quick access)
+   - Local audio files (your recordings)
 
 ---
 
-## 📊 Updated Completion Status
+## What's Working Right Now
 
-| Component | Status | Completion | Notes |
-|-----------|--------|------------|-------|
-| **Core System** |
-| Database Layer | ✅ | 100% | Fully tested |
-| Data Models | ✅ | 100% | Fully tested |
-| Repositories | ✅ | 100% | Fully tested |
-| Services (Existing) | ✅ | 100% | All tested |
-| MCP Server | ✅ | 100% | Tested |
-| Gradio Interface | ✅ | 100% | Functional + STT tab |
-| Testing Suite | ✅ | 100% | 55+ tests passing |
-| Cache Service | ✅ | 100% | Redis integrated |
-| Configuration | ✅ | 100% | Complete |
-| Docker Setup | ✅ | 90% | Works locally |
-| **Phase 1: STT** |
-| STT Service | ✅ | 100% | Fully implemented |
-| STT Configuration | ✅ | 100% | Complete |
-| MCP STT Tools | ✅ | 100% | 4 tools working |
-| Gradio STT Tab | ✅ | 100% | Full UI |
-| STT Testing | ✅ | 100% | All tests pass |
-| **Phase 2: RAG** |
-| RAG Service | 🔴 | 0% | Not started |
-| ChromaDB Integration | 🔴 | 0% | Not started |
-| Document Indexing | 🔴 | 0% | Not started |
-| Semantic Search | 🔴 | 0% | Not started |
-| **Phase 3: MoE** |
-| MoE Router | 🔴 | 0% | Not started |
-| Expert 2: Summarization | 🔴 | 0% | Not started |
-| Expert 3: Entity Extraction | 🔴 | 0% | Not started |
-| Expert 4: Question Answering | 🔴 | 0% | Not started |
+### Core Features (All Complete)
 
-**Current Overall: 90% (Core + Phase 1 Complete)**  
-**Target with All Features: 100%**
+**Database & Storage**
+- PostgreSQL database for all your CRM data
+- Redis caching for faster responses
+- Everything stored locally on your machine
 
----
+**Deal Management**
+- Track all your deals and activities
+- Store customer information
+- Record agent interactions
 
-## 🎯 Development Priorities
+**Sentiment Analysis**
+- Understands Persian language
+- Analyzes emotions in conversations
+- Uses HooshvareLab BERT model
 
-### ✅ Already Complete - No Action Needed:
-1. Core CRM functionality
-2. Sentiment analysis
-3. Analytics and health scoring
-4. Database and caching
-5. Testing infrastructure
-6. MCP and Gradio interfaces
-7. **Speech-to-Text (Phase 1) ✅**
+**Analytics**
+- Calculate deal health scores
+- Identify at-risk deals
+- Provide actionable insights
+- Track portfolio performance
 
-### 🔴 To Be Implemented (In Order):
+**Speech-to-Text (Recently Added)**
+- Convert Persian audio to text
+- Supports MP3, WAV, M4A, FLAC, OGG, WEBM formats
+- Fast transcription with Whisper model
+- Works with recordings from calls or meetings
 
-**Phase 2: RAG System** (Estimated: 5-7 days)
-- Semantic search over CRM data
-- ChromaDB integration
-- Document indexing
-- Qwen2 LLM integration
-- High value for query capabilities
+**User Interfaces**
+- Web interface (Gradio) - easy to use in your browser
+- MCP server - integrates with Claude Desktop
+- Both interfaces work with all features
 
-**Phase 3: MoE System** (Estimated: 7-10 days)
-- Router model training/selection
-- Expert model integration (3 new models)
-- Response aggregation
-- Most complex but powerful
+**Testing**
+- Over 55 tests to ensure everything works
+- 85%+ test coverage
+- Automated testing for reliability
 
 ---
 
-## 🔧 Technology Stack
+## What's Coming Next
 
-### Current Stack:
+### Phase 2: Smart Search (RAG System)
+
+This will let you search through your CRM data using natural language. Ask questions like "show me deals where customers mentioned pricing concerns" and get relevant results.
+
+**Timeline:** 5-7 days
+
+### Phase 3: Expert System (MoE)
+
+Multiple AI models working together, each specializing in different tasks:
+- Summarizing conversations
+- Extracting key information
+- Answering specific questions
+
+**Timeline:** 7-10 days
+
+---
+
+## Technical Details (For Developers)
+
+### Current Technology
+
 - **Language:** Python 3.11+
 - **Database:** PostgreSQL (local)
 - **Cache:** Redis 7
-- **ML Framework:** Hugging Face Transformers
-- **Sentiment:** HooshvareLab BERT (Persian)
-- **STT:** vhdm/whisper-large-fa-v1 (Persian) ✅
-- **MCP:** Model Context Protocol SDK
-- **Web UI:** Gradio 4.0+
-- **Testing:** pytest, pytest-asyncio, pytest-cov
+- **AI Framework:** Hugging Face Transformers
+- **Sentiment Model:** HooshvareLab BERT (Persian)
+- **Speech-to-Text:** Whisper Large (Persian)
+- **Interface:** Gradio 4.0+ for web, MCP for Claude Desktop
+- **Testing:** pytest with async support
 
-### Stack Additions (Remaining):
-- **Vector DB:** ChromaDB (local, embedded) 🔴
-- **Embeddings:** sentence-transformers 🔴
-- **LLM:** Qwen2 (local) 🔴
-- **Summarization:** mT5 or similar 🔴
-- **NER:** Persian/Multilingual NER model 🔴
-- **QA:** Multilingual QA model 🔴
-- **Router:** Small BERT classifier 🔴
+### Coming Soon
+
+- **Vector Database:** ChromaDB for semantic search
+- **Language Model:** Qwen2 for advanced queries
+- **Additional AI Models:** For summarization, entity extraction, and Q&A
 
 ---
 
-## 📦 Project Structure (Updated)
+## Project Structure
 
 ```
 persian-deal-analyzer/
-├── database/              # ✅ Complete
-├── models/                # ✅ Complete
-├── services/
-│   ├── deal_service.py           # ✅ Complete
-│   ├── sentiment_service.py      # ✅ Complete
-│   ├── analytics_service.py      # ✅ Complete
-│   ├── cache_service.py          # ✅ Complete
-│   ├── stt_service.py            # ✅ COMPLETE (Phase 1)
-│   ├── rag_service.py            # 🔴 TODO (Phase 2)
-│   └── moe_service.py            # 🔴 TODO (Phase 3)
-├── mcp_spec/              # ✅ Complete + STT tools
-│   ├── handlers/
-│   │   ├── tool_handlers.py      # ✅ Updated with STT
-│   │   └── resource_handlers.py  # ✅ Complete
-│   ├── schemas/
-│   │   └── tool_schemas.py       # ✅ Updated with STT
-│   └── server.py                 # ✅ Complete
-├── tests/                 # ✅ Complete + STT tests
-│   ├── manual/
-│   │   └── test_stt_manual.py    # ✅ NEW
-│   ├── integration/
-│   │   └── test_stt_mcp_integration.py  # ✅ NEW
-│   └── unit/
-├── config/                # ✅ Complete + STTSettings
-├── utils/                 # ✅ Complete
-├── gradio_mcp_client.py   # ✅ Complete + STT tab
-├── audio_files/           # ✅ NEW - Audio storage
-├── vector_store/          # 🔴 NEW - ChromaDB (Phase 2)
-├── models_cache/          # ✅ Model weights cache
-├── main.py                # ✅ Complete
-└── requirements.txt       # ✅ Updated with STT deps
+├── database/              # Database connection and management
+├── models/                # Data models (deals, activities, agents)
+├── services/              # Business logic
+│   ├── deal_service.py           # Deal management
+│   ├── sentiment_service.py      # Emotion analysis
+│   ├── analytics_service.py      # Insights and scoring
+│   ├── cache_service.py          # Fast data access
+│   └── stt_service.py            # Speech-to-text
+├── mcp_spec/              # MCP server for Claude integration
+├── tests/                 # Automated tests
+├── config/                # Settings and configuration
+├── audio_files/           # Audio storage
+├── models_cache/          # Downloaded AI models
+└── gradio_mcp_client.py   # Web interface
 ```
 
 ---
 
-## 🚀 Quick Start (Current System with STT)
+## Getting Started
 
+### First Time Setup
+
+1. **Start the databases**
+   ```bash
+   docker-compose up -d
+   ```
+   This starts PostgreSQL and Redis in the background.
+
+2. **Run the MCP server**
+   ```bash
+   python main.py
+   ```
+   First time will download the AI models (about 3-4 GB). After that, it starts instantly.
+
+3. **Open the web interface**
+   ```bash
+   python launch_gradio.py
+   ```
+   Then open your browser to the URL it shows.
+
+4. **Run tests** (optional, to verify everything works)
+   ```bash
+   pytest tests/ --cov
+   ```
+
+### Daily Use
+
+After setup, you just need:
 ```bash
-# 1. Start services
-docker-compose up -d  # Redis + PostgreSQL
-
-# 2. Run MCP server (automatically initializes STT)
-python main.py
-# On first run: Downloads vhdm/whisper-large-fa-v1 (~3GB)
-# Subsequent runs: Loads from cache instantly
-
-# 3. Run Gradio interface (includes STT tab)
-python launch_gradio.py
-
-# 4. Run all tests (including STT)
-pytest tests/ --cov
-
-# 5. Test STT specifically
-python tests/manual/test_stt_manual.py
-pytest tests/integration/test_stt_mcp_integration.py -v
+docker-compose up -d    # Start databases
+python main.py          # Start the server
+python launch_gradio.py # Open web interface
 ```
 
 ---
 
-## 📈 Performance Targets
+## Performance
 
-### Current Performance:
-- Sentiment Analysis: ~200-400ms per text
-- Deal Query: ~20-50ms
-- Analytics: ~300-600ms
-- **STT Transcription: ~1-3 seconds per minute of audio** ✅
-- Test Coverage: 85%+
+### What You Can Expect
 
-### Target Performance (with remaining features):
-- RAG Search: <500ms per query
-- MoE Routing: <50ms (router only)
-- Expert Inference: 100-500ms depending on expert
-- End-to-end (RAG + MoE): <2 seconds
+- **Sentiment Analysis:** Half a second per text
+- **Deal Queries:** Nearly instant (under 50ms)
+- **Analytics:** About half a second
+- **Speech-to-Text:** 1-3 seconds per minute of audio
+- **Test Coverage:** 85% of code is tested
 
----
+### Storage Needs
 
-## 💾 Storage Requirements
+**Current:**
+- Database: ~100 MB (your CRM data)
+- Redis Cache: ~50 MB
+- AI Models: ~3.5 GB
+- Audio Files: Varies based on your recordings
 
-### Current:
-- Database: ~100MB (typical CRM data)
-- Redis: ~50MB (cache)
-- Models: ~2GB (sentiment model)
-- **STT Model: ~1.5GB (whisper-large-fa-v1)** ✅
-- **Audio Files: Variable (user uploads)** ✅
+**Total Current:** About 4 GB
 
-### After All Features:
-- ChromaDB: ~500MB (embedded CRM data)
-- MoE Models: ~4-6GB (all 4 experts)
-
-**Total Current: ~4GB**  
-**Total Estimated Final: ~15GB**
+**After All Features:** About 15 GB (with all AI models)
 
 ---
 
-## 🎯 Success Criteria
+## Success Metrics
 
-### Core System (Already Met ✅):
-- ✅ All tests passing
-- ✅ MCP server functional
-- ✅ Gradio interface responsive
-- ✅ Sentiment analysis accurate
-- ✅ Analytics providing insights
-- ✅ Cache working efficiently
+### Already Achieved
 
-### Phase 1: STT (Achieved ✅):
-- ✅ STT transcribes Persian audio accurately
-- ✅ Support for multiple audio formats
-- ✅ MCP tools working
-- ✅ Gradio UI functional
-- ✅ Caching implemented
-- ✅ All tests passing
+- All automated tests passing
+- MCP server working smoothly
+- Web interface is responsive
+- Sentiment analysis is accurate
+- Analytics provide useful insights
+- Caching makes everything fast
+- Speech-to-text handles Persian audio well
 
-### Remaining Features (To Achieve):
-- 🔴 RAG returns relevant deals with >80% accuracy
-- 🔴 MoE router selects correct expert >90% of time
-- 🔴 All experts perform their tasks accurately
-- 🔴 End-to-end latency <3 seconds
-- 🔴 New tests achieve >85% coverage
+### Future Goals
+
+- Smart search returns relevant results 80%+ of the time
+- Expert system picks the right AI model 90%+ of the time
+- All AI tasks perform accurately
+- Full workflow completes in under 3 seconds
 
 ---
 
-## 📋 Next Steps
+## What's Next
 
-### Immediate Next: Phase 2 - RAG System
+**Immediate Priority:** Smart Search (RAG System)
 
-**Components to Implement:**
-1. RAG Service (`services/rag_service.py`)
-2. ChromaDB vector store setup
-3. Document indexing (deals, activities)
-4. Semantic search functionality
-5. Qwen2 LLM integration
-6. MCP tools for RAG
-7. Gradio interface for RAG
-8. Testing suite
+We'll add the ability to search through your deals using natural language questions. This includes:
+1. Setting up ChromaDB for vector storage
+2. Creating document indexes
+3. Adding semantic search
+4. Integrating with the Qwen2 language model
+5. Building search tools for both MCP and web interfaces
+6. Writing tests for the new features
 
-**Estimated Timeline:** 5-7 days
+**Estimated Time:** 5-7 days
+
+---
+
+## Questions?
+
+- For setup help: Check the main README.md
+- For technical details: See TESTING_GUIDE.md
+- For development: See TEST_IMPLEMENTATION_SUMMARY.md
 
 ---
 
 **Last Updated:** October 8, 2025  
-**Status:** Core Complete + Phase 1 (STT) Complete  
-**Progress:** 90% Complete  
-**Next Milestone:** Phase 2 - RAG System Implementation
+**Status:** Core system complete, speech-to-text working  
+**Progress:** 90% complete  
+**Next Step:** Adding smart search capabilities
