@@ -80,7 +80,7 @@ class AnalysisSettings:
 class PathSettings:
     DATABASE_DIR = PROJECT_ROOT / "database"
     SERVICES_DIR = PROJECT_ROOT / "services"
-    MCP_DIR = PROJECT_ROOT / "mcp"
+    MCP_DIR = PROJECT_ROOT / "mcp_spec"
     LOGS_DIR = PROJECT_ROOT / "logs"
     
     @classmethod
