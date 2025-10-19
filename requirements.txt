@@ -72,7 +72,7 @@ langchain-core
 pypdf
 python-docx
 unstructured
-
+tf-keras
 # ============================================
 # PHASE 3: MIXTURE OF EXPERTS (MoE)
 # ============================================
