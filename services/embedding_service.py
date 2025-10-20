@@ -50,6 +50,36 @@ class EmbeddingService(BaseService):
             # Return gracefully - model will be None
             self.logger.warning("Continuing without embedding model")
     
+    def embed_texts_batch(self, texts: List[str], batch_size: int = 32) -> Optional[List[List[float]]]:
+        """
+        Generate embeddings for multiple texts at once (optimized)
+        
+        Args:
+            texts: List of texts to embed
+            batch_size: Number of texts per batch
+            
+        Returns:
+            List of embeddings or None on error
+        """
+        if not self.model:
+            self.logger.error("Model not initialized. Call initialize() first")
+            return None
+        
+        if not texts:
+            return []
+        
+        try:
+            # Use batch encoding for better performance
+            embeddings = self.model.encode(texts, batch_size=batch_size, convert_to_tensor=False)
+            
+            # Convert to list if numpy array
+            if hasattr(embeddings, 'tolist'):
+                return embeddings.tolist()
+            return embeddings
+        except Exception as e:
+            self.logger.error(f"Error generating batch embeddings: {e}")
+            return None
+    
     def _format_deal_text(self, deal: Dict[str, Any]) -> str:
         """
         Convert deal to searchable text

@@ -10,6 +10,7 @@ from .sentiment_service import SentimentService
 from .analytics_service import AnalyticsService
 from .stt_service import STTService
 from .cache_service import CacheService, get_cache_service
+from .rag_search_cache_service import RAGSearchCacheService, RAGSearchWithCache, rag_search_cache
 
 # Lazy imports for RAG services to avoid Keras/TensorFlow conflicts
 def __getattr__(name):
@@ -35,4 +36,7 @@ __all__ = [
     'EmbeddingService',
     'VectorStoreService',
     'RAGSearchService',
+    'RAGSearchCacheService',
+    'RAGSearchWithCache',
+    'rag_search_cache',
 ]
