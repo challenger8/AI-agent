@@ -122,13 +122,17 @@ class STTSettings:
     RETURN_TIMESTAMPS = True
     
     # Performance
-    USE_GPU = True  # Set to False if no GPU available
+    USE_GPU = False  # Set to False if no GPU available
     TORCH_DTYPE = "float16"  # float16 for GPU, float32 for CPU
     
     # Cache settings
     CACHE_TRANSCRIPTIONS = True
     CACHE_TTL_SECONDS = 3600 * 24 * 7  # 1 week
-    
+    MODEL_SIZE = "large"          # For logging: model name
+    FP16 = True                   # Use float16 for GPU
+    BEAM_SIZE = 5                 # Beam search width
+    BEST_OF = 5                   # Number of candidates to evaluate
+    TEMPERATURE = 0.0   
     @classmethod
     def ensure_directories(cls):
         """Create necessary directories"""
@@ -139,7 +143,8 @@ class STTSettings:
 def get_stt_available() -> bool:
     """Check if STT is available"""
     try:
-        import whisper
+        import transformers  # ✅ Check for transformers (Hugging Face)
+        import torch  # ✅ Also check for torch
         return FeatureFlags.STT_ENABLED
     except ImportError:
         return False

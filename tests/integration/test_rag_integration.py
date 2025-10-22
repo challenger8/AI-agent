@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 from services.embedding_service import EmbeddingService
 from services.vector_store_service import VectorStoreService
-from services.rag_search_service import RAGSearchService
+from services.rag_search_service import RAGSearchService  # ← Direct import
 from models.deal_model import Deal, DealActivity, CRMAgent
 from utils.exceptions import ServiceError
 

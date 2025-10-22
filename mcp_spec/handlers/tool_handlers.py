@@ -134,11 +134,19 @@ class ToolHandlers:
                 result = json.dumps({"error": f"Unknown tool: {name}"})
             
             
+            if isinstance(result, dict):
+                result_text = json.dumps(result, ensure_ascii=False, default=str)
+            else:
+                result_text = result
+            
             return [TextContent(
                 type="text",
-                text=result
+                text=result_text
             )]
-            
+        except Exception as e:
+            logger.error(f"Unexpected error in tool {name}: {e}")
+            error_result = {"error": f"Unexpected error: {str(e)}"}
+            return [TextContent(type="text", text=json.dumps(error_result, ensure_ascii=False))]    
         
         
         except Exception as e:

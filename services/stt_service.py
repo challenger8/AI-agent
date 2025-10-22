@@ -164,15 +164,16 @@ class STTService(BaseService):
             self.logger.info(f"Transcribing audio: {audio_path.name}")
             
             # Transcribe using Whisper
-            result = self.model.transcribe(
-                str(audio_path),
-                language=language,
-                task=STTSettings.TASK,
-                beam_size=STTSettings.BEAM_SIZE,
-                best_of=STTSettings.BEST_OF,
-                temperature=STTSettings.TEMPERATURE,
-                fp16=STTSettings.FP16 if STTSettings.USE_GPU else False
-            )
+            result = self.pipeline(
+            str(audio_path),
+            batch_size=STTSettings.BATCH_SIZE,
+            generate_kwargs={
+                "language": language or STTSettings.LANGUAGE,
+                "task": STTSettings.TASK,
+                "num_beams": STTSettings.BEAM_SIZE,
+                "temperature": STTSettings.TEMPERATURE,
+            }
+        )
             
             # Prepare result
             transcription_result = {
