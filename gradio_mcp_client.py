@@ -12,7 +12,220 @@ import gradio as gr
 
 logger = logging.getLogger(__name__)
 
+class CAGSearchManager:
+    """Manages CAG search in Gradio"""
+    
+    def __init__(self):
+        self.cag_manager = None
+        self.initialized = False
+    
+    async def initialize(self):
+        """Initialize CAG"""
+        try:
+            from services.cag_orchestrator_service import CAGSearchManager as CAGMgr
+            from services.cag_orchestrator_service import CAGOrchestrator
+            from database.database import create_database_manager
+            from models.repositories import create_repositories
+            
+            db = create_database_manager()
+            repos = create_repositories(db)
+            
+            orchestrator = CAGOrchestrator(repos)
+            await orchestrator.initialize()
+            
+            self.cag_manager = CAGMgr(orchestrator)
+            self.initialized = True
+            logger.info("✅ CAG initialized")
+            return True
+        except Exception as e:
+            logger.error(f"❌ CAG init failed: {e}")
+            return False
+    
+    def search(self, query: str, doc_type: str = 'deal', n_results: int = 5) -> Dict[str, Any]:
+        """Search with CAG"""
+        if not self.initialized:
+            return {'error': 'Not initialized'}
+        
+        try:
+            if doc_type == 'deal':
+                return self.cag_manager.search_deals(query, n_results)
+            elif doc_type == 'activity':
+                return self.cag_manager.search_activities(query, n_results)
+            elif doc_type == 'agent':
+                return self.cag_manager.search_agents(query, n_results)
+            else:
+                return self.cag_manager.search(query, n_results=n_results)
+        except Exception as e:
+            logger.error(f"Search failed: {e}")
+            return {'error': str(e)}
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get CAG stats"""
+        if not self.initialized:
+            return {}
+        return self.cag_manager.get_stats()
 
+
+# Global manager
+cag_manager = CAGSearchManager()
+
+
+def format_cag_results(result: Dict[str, Any]) -> str:
+    """Format CAG results for Gradio"""
+    
+    if 'error' in result:
+        return f"❌ Error: {result['error']}"
+    
+    correction = result.get('correction', {})
+    metrics = result.get('confidence_metrics', {})
+    results = result.get('results', {})
+    
+    output = "### 🤖 CAG Search Results\n\n"
+    
+    # Correction info
+    if correction.get('applied'):
+        output += f"🔄 **Query Corrected** (Rewrites: {correction.get('rewrites_used', [])})\n\n"
+    
+    output += f"📊 **Confidence:** {metrics.get('average_score', 0):.1%}\n"
+    output += f"✅ **Pass Rate:** {metrics.get('pass_rate', 0):.1%}\n"
+    output += f"⏱️ **Time:** {result.get('execution_time', 0):.3f}s\n\n"
+    
+    # Results by type
+    for entity_type in ['deals', 'activities', 'agents']:
+        docs = results.get(entity_type, [])
+        if docs:
+            output += f"#### {entity_type.upper()} ({len(docs)})\n\n"
+            for i, doc in enumerate(docs[:5], 1):
+                output += f"**{i}.** {doc.get('text', 'N/A')[:80]}\n"
+            output += "\n"
+    
+    return output
+
+
+def cag_search_handler(query: str, doc_type: str, n_results: int) -> Tuple[str, str]:
+    """Handle CAG search"""
+    
+    if not query.strip():
+        return "❌ Enter query", ""
+    
+    if not cag_manager.initialized:
+        return "❌ Not initialized", ""
+    
+    result = cag_manager.search(query, doc_type, n_results)
+    formatted = format_cag_results(result)
+    
+    # Plain text export
+    plain = f"Query: {query}\n"
+    plain += f"Correction Applied: {result.get('correction', {}).get('applied', False)}\n"
+    plain += f"Confidence: {result.get('confidence_metrics', {}).get('average_score', 0):.1%}\n\n"
+    
+    for entity_type in ['deals', 'activities', 'agents']:
+        for doc in result.get('results', {}).get(entity_type, []):
+            plain += f"{doc.get('text', 'N/A')}\n"
+    
+    return formatted, plain
+
+
+def cag_init_handler() -> str:
+    """Initialize CAG"""
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    success = loop.run_until_complete(cag_manager.initialize())
+    
+    if success:
+        return "✅ **CAG Ready**\n\nCorrective Augmented Generation enabled"
+    else:
+        return "❌ **CAG Init Failed**"
+
+
+def cag_stats_handler() -> str:
+    """Get CAG stats"""
+    if not cag_manager.initialized:
+        return "Not initialized"
+    
+    stats = cag_manager.get_stats()
+    
+    output = "### 📈 CAG Statistics\n\n"
+    output += f"**Total Searches:** {stats.get('total_searches', 0)}\n"
+    output += f"**Rewrites Triggered:** {stats.get('rewrites_triggered', 0)}\n"
+    output += f"**Rewrite Rate:** {stats.get('rewrite_rate', 0):.1%}\n"
+    output += f"**Success Rate:** {stats.get('success_rate', 0):.1%}\n"
+    
+    return output
+
+
+def create_cag_tab() -> None:
+    """Create CAG search tab in Gradio"""
+    
+    with gr.Tab("🤖 CAG Search"):
+        gr.Markdown("## 🤖 Corrective Augmented Generation")
+        gr.Markdown("Smart semantic search that corrects queries when confidence is low")
+        
+        # Init section
+        with gr.Group(label="⚙️ Setup"):
+            with gr.Row():
+                init_status = gr.Markdown("🔄 Not initialized")
+                init_btn = gr.Button("Initialize CAG", variant="primary", size="lg")
+            
+            stats_output = gr.Markdown("Stats will appear here...")
+        
+        # Search section
+        with gr.Group(label="🔍 Search"):
+            query = gr.Textbox(
+                label="Search Query",
+                placeholder="e.g., 'enterprise pricing', 'implementation timeline'",
+                lines=2
+            )
+            
+            with gr.Row():
+                doc_type = gr.Radio(
+                    choices=[
+                        ("All", "all"),
+                        ("Deals", "deal"),
+                        ("Activities", "activity"),
+                        ("Agents", "agent")
+                    ],
+                    value="all",
+                    label="Entity Type"
+                )
+                
+                n_results = gr.Slider(
+                    minimum=1, maximum=20, value=5, step=1,
+                    label="Results"
+                )
+            
+            search_btn = gr.Button("Search with CAG", variant="primary", size="lg")
+            
+            results = gr.Markdown("Results appear here...")
+            
+            with gr.Accordion("📥 Export", open=False):
+                export_text = gr.Textbox(lines=8, interactive=False)
+                gr.Button("Download").click(
+                    lambda x: x, inputs=[export_text]
+                )
+        
+        # Event handlers
+        init_btn.click(
+            cag_init_handler,
+            outputs=[init_status]
+        ).then(
+            cag_stats_handler,
+            outputs=[stats_output]
+        )
+        
+        search_btn.click(
+            cag_search_handler,
+            inputs=[query, doc_type, n_results],
+            outputs=[results, export_text]
+        )
+
+
+# IN gradio_mcp_client.py main(), add to gr.Blocks():
+# create_cag_tab()
 class RAGSearchManager:
     """Manages RAG search operations in Gradio with caching"""
     

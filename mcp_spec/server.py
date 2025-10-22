@@ -21,6 +21,8 @@ from mcp.server.stdio import stdio_server
 from mcp.server.models import InitializationOptions
 from services.stt_service import get_stt_service, STTService
 from config.settings import get_stt_available
+from services.cag_orchestrator_service import CAGOrchestrator, CAGSearchManager
+
 # MCP imports - Fixed to avoid conflicts with local module
 from mcp_spec.schemas.tool_schemas import (
     # ... existing imports ...
@@ -137,7 +139,8 @@ class PersianDealAnalyzerMCPServer:
         self.stt_service: Optional[STTService] = None 
         self.tool_handlers: Optional[ToolHandlers] = None
         self.resource_handlers: Optional[ResourceHandlers] = None
-        
+        self.cag_orchestrator = None
+        self.cag_manager = None
         # Setup server handlers
         self._setup_mcp_handlers()
         
@@ -163,14 +166,24 @@ class PersianDealAnalyzerMCPServer:
             
             # Initialize handlers
             self._initialize_handlers()
-            
+            await self._initialize_cag_orchestrator()
             self.logger.info("All services initialized successfully")
             return True
             
         except Exception as e:
             self.logger.error(f"Service initialization failed: {e}")
             return False
-    
+    async def _initialize_cag_orchestrator(self):
+        """Initialize CAG orchestrator"""
+        try:
+            self.logger.info("Initializing CAG...")
+            self.cag_orchestrator = CAGOrchestrator(self.repositories)
+            await self.cag_orchestrator.initialize()
+            self.cag_manager = CAGSearchManager(self.cag_orchestrator)
+            self.logger.info("CAG initialized")
+        except Exception as e:
+            self.logger.error(f"CAG init failed: {e}")
+            self.cag_orchestrator = None
     async def _initialize_database(self):
         """Initialize database connection and repositories"""
         try:
@@ -326,7 +339,29 @@ class PersianDealAnalyzerMCPServer:
                 self.logger.error(f"Error calling tool {name}: {e}")
                 error_response = [{"type": "text", "text": f'{{"error": "Tool call failed: {str(e)}"}}'}]
                 return error_response
-    
+        @self.server.call_tool()
+        async def handle_cag_search(query: str, n_results: int = 5):
+            """CAG semantic search"""
+            if not self.cag_manager:
+                return [{"type": "text", "text": '{"error": "CAG not available"}'}]
+            try:
+                result = self.cag_manager.search(query, n_results=n_results)
+                info = f"Query: {query}\nCorrection: {result['correction']['applied']}\nConfidence: {result['confidence_metrics'].get('average_score', 0):.3f}\nDeals: {len(result['results'].get('deals', []))}\nActivities: {len(result['results'].get('activities', []))}"
+                return [{"type": "text", "text": info}]
+            except Exception as e:
+                return [{"type": "text", "text": f'{{"error": "{str(e)}"}}'}]
+
+        @self.server.call_tool()
+        async def handle_cag_stats():
+            """Get CAG statistics"""
+            if not self.cag_manager:
+                return [{"type": "text", "text": '{"error": "CAG not available"}'}]
+            try:
+                stats = self.cag_manager.get_stats()
+                info = f"Total Searches: {stats['total_searches']}\nRewrites Triggered: {stats['rewrites_triggered']}\nRewrite Rate: {stats.get('rewrite_rate', 0):.1%}"
+                return [{"type": "text", "text": info}]
+            except Exception as e:
+                return [{"type": "text", "text": f'{{"error": "{str(e)}"}}'}]
     async def run(self):
         """Run the MCP server"""
         try:
