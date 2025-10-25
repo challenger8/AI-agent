@@ -58,6 +58,18 @@ def check_dependencies():
     
     logger.info("All dependencies are satisfied")
     return True
+def run_gradio_app():
+    """Run the Gradio application"""
+    print("Starting Gradio interface...")
+    print("Access the interface at: http://localhost:7860")
+    
+    app.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        share=False,
+        debug=True,
+        show_error=True
+    )
 
 def main():
     """Main launcher function"""

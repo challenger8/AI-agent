@@ -107,32 +107,39 @@ class VectorStoreService(BaseService):
             self.logger.error(f"Error adding embeddings: {e}")
             raise ServiceError(f"Failed to add embeddings: {e}")
     
-    def add_all_embeddings(self, embedding_service: EmbeddingService) -> Dict[str, bool]:
+    def add_all_embeddings(self, embedding_service_or_dict) -> Dict[str, bool]:
         """
         Generate and add all embeddings to vector store
         
         Args:
-            embedding_service: Initialized EmbeddingService
+            embedding_service_or_dict: Either EmbeddingService object or embeddings dict
             
         Returns:
             Status for each collection
         """
         try:
-            self.logger.info("Generating all embeddings")
-            all_embeddings = embedding_service.embed_all_data()
+            self.logger.info("Adding all embeddings")
+            
+            # Handle both EmbeddingService and dict ✅ FLEXIBLE
+            if isinstance(embedding_service_or_dict, dict):
+                all_embeddings = embedding_service_or_dict
+                self.logger.info("Using provided embeddings dict")
+            else:
+                self.logger.info("Generating embeddings from service")
+                all_embeddings = embedding_service_or_dict.embed_all_data()
             
             results = {}
             
             # Add deals
-            if all_embeddings['deals']:
+            if all_embeddings.get('deals'):
                 results['deals'] = self.add_embeddings(all_embeddings['deals'], 'deals')
             
             # Add activities
-            if all_embeddings['activities']:
+            if all_embeddings.get('activities'):
                 results['activities'] = self.add_embeddings(all_embeddings['activities'], 'activities')
             
             # Add agents
-            if all_embeddings['agents']:
+            if all_embeddings.get('agents'):
                 results['agents'] = self.add_embeddings(all_embeddings['agents'], 'agents')
             
             self.logger.info(f"All embeddings added: {results}")

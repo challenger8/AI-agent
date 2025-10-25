@@ -26,99 +26,47 @@ class TestRAGEndToEnd:
         """Create mock repositories with sample data"""
         mock_repo = MagicMock()
         
-        # Mock deals
+        # Mock deals - FIXED: Use lambda with default argument to capture value
         deals = [
             MagicMock(
-                to_dict=lambda: {
-                    'id': 1,
-                    'title': 'Enterprise Software License',
-                    'status': 'open',
-                    'value': 150000,
-                    'customer_name': 'Tech Corp',
-                    'description': 'Customer interested in pricing and implementation timeline'
-                }
+                to_dict=lambda d={'id': 1, 'title': 'Enterprise Software License', 'status': 'open', 'value': 150000, 'customer_name': 'Tech Corp', 'description': 'Customer interested in pricing and implementation timeline'}: d
             ),
             MagicMock(
-                to_dict=lambda: {
-                    'id': 2,
-                    'title': 'Consulting Services',
-                    'status': 'negotiation',
-                    'value': 75000,
-                    'customer_name': 'Global Industries',
-                    'description': 'Strategic consulting engagement for digital transformation'
-                }
+                to_dict=lambda d={'id': 2, 'title': 'Consulting Services', 'status': 'negotiation', 'value': 75000, 'customer_name': 'Global Industries', 'description': 'Strategic consulting engagement for digital transformation'}: d
             ),
             MagicMock(
-                to_dict=lambda: {
-                    'id': 3,
-                    'title': 'Support Package Renewal',
-                    'status': 'closed',
-                    'value': 25000,
-                    'customer_name': 'Local Business Inc',
-                    'description': 'Annual maintenance and support agreement'
-                }
+                to_dict=lambda d={'id': 3, 'title': 'Support Package Renewal', 'status': 'closed', 'value': 25000, 'customer_name': 'Local Business Inc', 'description': 'Annual maintenance and support agreement'}: d
             )
         ]
         
-        # Mock activities
+        # Mock activities - FIXED: Use lambda with default argument to capture value
         activities = [
             MagicMock(
-                to_dict=lambda: {
-                    'id': 1,
-                    'deal_id': 1,
-                    'type': 'call',
-                    'agent_name': 'Sarah Johnson',
-                    'activity_date': '2024-01-15',
-                    'notes': 'Customer mentioned concerns about pricing structure',
-                    'outcome': 'follow_up'
-                }
+                to_dict=lambda a={'id': 1, 'deal_id': 1, 'type': 'call', 'agent_name': 'Sarah Johnson', 'activity_date': '2024-01-15', 'notes': 'Customer mentioned concerns about pricing structure', 'outcome': 'follow_up'}: a
             ),
             MagicMock(
-                to_dict=lambda: {
-                    'id': 2,
-                    'deal_id': 2,
-                    'type': 'email',
-                    'agent_name': 'Mike Chen',
-                    'activity_date': '2024-01-16',
-                    'notes': 'Sent proposal for consulting services',
-                    'outcome': 'pending'
-                }
+                to_dict=lambda a={'id': 2, 'deal_id': 2, 'type': 'email', 'agent_name': 'Mike Chen', 'activity_date': '2024-01-16', 'notes': 'Sent proposal for consulting services', 'outcome': 'pending'}: a
             ),
             MagicMock(
-                to_dict=lambda: {
-                    'id': 3,
-                    'deal_id': 1,
-                    'type': 'meeting',
-                    'agent_name': 'Sarah Johnson',
-                    'activity_date': '2024-01-17',
-                    'notes': 'Discussed implementation timeline and resource allocation',
-                    'outcome': 'next_step'
-                }
+                to_dict=lambda a={'id': 3, 'deal_id': 1, 'type': 'meeting', 'agent_name': 'Sarah Johnson', 'activity_date': '2024-01-17', 'notes': 'Discussed implementation timeline and resource allocation', 'outcome': 'next_step'}: a
             )
         ]
         
-        # Mock agents
+        # Mock agents - FIXED: Use lambda with default argument to capture value
         agents = [
             MagicMock(
-                to_dict=lambda: {
-                    'id': 1,
-                    'name': 'Sarah Johnson',
-                    'email': 'sarah.johnson@company.com',
-                    'phone': '+1-555-0101',
-                    'title': 'Sales Manager'
-                }
+                to_dict=lambda ag={'id': 1, 'name': 'Sarah Johnson', 'email': 'sarah.johnson@company.com', 'phone': '+1-555-0101', 'title': 'Sales Manager'}: ag
             ),
             MagicMock(
-                to_dict=lambda: {
-                    'id': 2,
-                    'name': 'Mike Chen',
-                    'email': 'mike.chen@company.com',
-                    'phone': '+1-555-0102',
-                    'title': 'Account Executive'
-                }
+                to_dict=lambda ag={'id': 2, 'name': 'Mike Chen', 'email': 'mike.chen@company.com', 'phone': '+1-555-0102', 'title': 'Account Executive'}: ag
             )
         ]
         
+        # Setup context manager for repositories
+        mock_repo.__enter__ = MagicMock(return_value=mock_repo)
+        mock_repo.__exit__ = MagicMock(return_value=False)
+        
+        # Setup repository methods
         mock_repo.deals.get_all_deals.return_value = deals
         mock_repo.activities.get_all_activities.return_value = activities
         mock_repo.agents.get_all_agents.return_value = agents
@@ -136,28 +84,25 @@ class TestRAGEndToEnd:
         """Test complete RAG workflow: embed, index, search"""
         # Initialize services
         rag_service = RAGSearchService(mock_repositories)
+        rag_service.embedding_service = EmbeddingService(mock_repositories)
+        await rag_service.embedding_service.initialize()
         
-        # Patch vector store to use temp directory
-        with patch.object(RAGSearchService, 'vector_store_service') as mock_vs:
-            rag_service.embedding_service = EmbeddingService(mock_repositories)
-            await rag_service.embedding_service.initialize()
-            
-            rag_service.vector_store_service = VectorStoreService(
-                mock_repositories,
-                persist_dir=temp_chroma_dir
-            )
-            await rag_service.vector_store_service.initialize()
-            rag_service._initialized = True
-            
-            # Step 1: Index all data
-            assert rag_service._initialized
-            
-            # Generate embeddings
-            embeddings = rag_service.embedding_service.embed_all_data()
-            assert embeddings['total_embeddings'] > 0
-            assert len(embeddings['deals']) == 3
-            assert len(embeddings['activities']) == 3
-            assert len(embeddings['agents']) == 2
+        rag_service.vector_store_service = VectorStoreService(
+            mock_repositories,
+            persist_dir=temp_chroma_dir
+        )
+        await rag_service.vector_store_service.initialize()
+        rag_service._initialized = True
+        
+        # Step 1: Index all data
+        assert rag_service._initialized
+        
+        # Generate embeddings
+        embeddings = rag_service.embedding_service.embed_all_data()
+        assert embeddings['total_embeddings'] > 0
+        assert len(embeddings['deals']) == 3
+        assert len(embeddings['activities']) == 3
+        assert len(embeddings['agents']) == 2
     
     @pytest.mark.asyncio
     async def test_embedding_generation_with_sample_data(self, mock_repositories):
@@ -168,7 +113,7 @@ class TestRAGEndToEnd:
         # Embed all data types
         embeddings = service.embed_all_data()
         
-        assert embeddings['status'] == 'success' or 'deals' in embeddings
+        assert 'deals' in embeddings and 'total_embeddings' in embeddings
         assert embeddings['total_embeddings'] == 8  # 3 deals + 3 activities + 2 agents
         
         # Verify structure
@@ -186,6 +131,7 @@ class TestRAGEndToEnd:
         # Generate embeddings
         embedding_service = EmbeddingService(mock_repositories)
         await embedding_service.initialize()
+        
         embeddings = embedding_service.embed_all_data()
         
         # Initialize vector store
@@ -193,7 +139,7 @@ class TestRAGEndToEnd:
         await vector_store.initialize()
         
         # Add embeddings
-        results = vector_store.add_all_embeddings(embedding_service)
+        results = vector_store.add_all_embeddings(embeddings)
         
         assert results.get('deals', False)
         assert results.get('activities', False)
@@ -209,11 +155,10 @@ class TestRAGEndToEnd:
         # Setup
         embedding_service = EmbeddingService(mock_repositories)
         await embedding_service.initialize()
-        
+        embeddings = embedding_service.embed_all_data()
         vector_store = VectorStoreService(mock_repositories, persist_dir=temp_chroma_dir)
         await vector_store.initialize()
-        vector_store.add_all_embeddings(embedding_service)
-        
+        vector_store.add_all_embeddings(embeddings)
         # Test searches
         pricing_results = vector_store.search_all_collections("pricing concerns", n_results=3)
         
@@ -244,11 +189,10 @@ class TestRAGEndToEnd:
         """Test searching activities by agent name"""
         embedding_service = EmbeddingService(mock_repositories)
         await embedding_service.initialize()
-        
+        embeddings = embedding_service.embed_all_data()
         vector_store = VectorStoreService(mock_repositories, persist_dir=temp_chroma_dir)
         await vector_store.initialize()
-        vector_store.add_all_embeddings(embedding_service)
-        
+        vector_store.add_all_embeddings(embeddings)
         # Search for Sarah Johnson
         results = vector_store.search_all_collections("Sarah Johnson", n_results=5)
         
@@ -323,13 +267,14 @@ class TestRAGEndToEnd:
             persist_dir=temp_chroma_dir
         )
         await rag_service.vector_store_service.initialize()
+        embeddings = rag_service.embedding_service.embed_all_data()
         rag_service._initialized = True
         
         # Initial indexing
-        rag_service.vector_store_service.add_all_embeddings(rag_service.embedding_service)
+        rag_service.vector_store_service.add_all_embeddings(embeddings)
         
         # Reindex deals
-        result = await rag_service.reindex_collection('deals')
+        result = rag_service.reindex_collection('deals')
         
         assert result['status'] == 'success'
         assert result['collection'] == 'deals'
@@ -347,11 +292,11 @@ class TestRAGEndToEnd:
             persist_dir=temp_chroma_dir
         )
         await rag_service.vector_store_service.initialize()
+        embeddings = rag_service.embedding_service.embed_all_data()
         rag_service._initialized = True
         
         # Index data
-        rag_service.vector_store_service.add_all_embeddings(rag_service.embedding_service)
-        
+        rag_service.vector_store_service.add_all_embeddings(embeddings)
         # Get stats
         stats = rag_service.get_index_stats()
         

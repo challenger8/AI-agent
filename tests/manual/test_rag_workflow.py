@@ -10,7 +10,7 @@ import sys
 import os
 import asyncio
 from pathlib import Path
-
+import pytest
 # Setup paths
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(script_dir))
@@ -43,96 +43,96 @@ def create_sample_data():
     
     # Sample deals
     deals = [
-        MagicMock(
-            to_dict=lambda: {
-                'id': 1,
-                'title': 'Enterprise Software License',
-                'status': 'open',
-                'value': 150000,
-                'customer_name': 'Tech Corp',
-                'description': 'Customer interested in pricing and implementation timeline'
-            }
-        ),
-        MagicMock(
-            to_dict=lambda: {
-                'id': 2,
-                'title': 'Consulting Services',
-                'status': 'negotiation',
-                'value': 75000,
-                'customer_name': 'Global Industries',
-                'description': 'Strategic consulting engagement for digital transformation'
-            }
-        ),
-        MagicMock(
-            to_dict=lambda: {
-                'id': 3,
-                'title': 'Support Package Renewal',
-                'status': 'closed',
-                'value': 25000,
-                'customer_name': 'Local Business Inc',
-                'description': 'Annual maintenance and support agreement'
-            }
-        )
-    ]
+    MagicMock(
+        to_dict=lambda d={
+            'id': 1,
+            'title': 'Enterprise Software License',
+            'status': 'open',
+            'value': 150000,
+            'customer_name': 'Tech Corp',
+            'description': 'Customer interested in pricing and implementation timeline'
+        }: d
+    ),
+    MagicMock(
+        to_dict=lambda d={
+            'id': 2,
+            'title': 'Consulting Services',
+            'status': 'negotiation',
+            'value': 75000,
+            'customer_name': 'Global Industries',
+            'description': 'Strategic consulting engagement for digital transformation'
+        }: d
+    ),
+    MagicMock(
+        to_dict=lambda d={
+            'id': 3,
+            'title': 'Support Package Renewal',
+            'status': 'closed',
+            'value': 25000,
+            'customer_name': 'Local Business Inc',
+            'description': 'Annual maintenance and support agreement'
+        }: d
+    )
+]
     
     # Sample activities
     activities = [
-        MagicMock(
-            to_dict=lambda: {
-                'id': 1,
-                'deal_id': 1,
-                'type': 'call',
-                'agent_name': 'Sarah Johnson',
-                'activity_date': '2024-01-15',
-                'notes': 'Customer mentioned concerns about pricing structure',
-                'outcome': 'follow_up'
-            }
-        ),
-        MagicMock(
-            to_dict=lambda: {
-                'id': 2,
-                'deal_id': 2,
-                'type': 'email',
-                'agent_name': 'Mike Chen',
-                'activity_date': '2024-01-16',
-                'notes': 'Sent proposal for consulting services',
-                'outcome': 'pending'
-            }
-        ),
-        MagicMock(
-            to_dict=lambda: {
-                'id': 3,
-                'deal_id': 1,
-                'type': 'meeting',
-                'agent_name': 'Sarah Johnson',
-                'activity_date': '2024-01-17',
-                'notes': 'Discussed implementation timeline and resource allocation',
-                'outcome': 'next_step'
-            }
-        )
-    ]
+    MagicMock(
+        to_dict=lambda a={
+            'id': 1,
+            'deal_id': 1,
+            'type': 'call',
+            'agent_name': 'Sarah Johnson',
+            'activity_date': '2024-01-15',
+            'notes': 'Customer mentioned concerns about pricing structure',
+            'outcome': 'follow_up'
+        }: a
+    ),
+    MagicMock(
+        to_dict=lambda a={
+            'id': 2,
+            'deal_id': 2,
+            'type': 'email',
+            'agent_name': 'Mike Chen',
+            'activity_date': '2024-01-16',
+            'notes': 'Sent proposal for consulting services',
+            'outcome': 'pending'
+        }: a
+    ),
+    MagicMock(
+        to_dict=lambda a={
+            'id': 3,
+            'deal_id': 1,
+            'type': 'meeting',
+            'agent_name': 'Sarah Johnson',
+            'activity_date': '2024-01-17',
+            'notes': 'Discussed implementation timeline and resource allocation',
+            'outcome': 'next_step'
+        }: a
+    )
+]
     
     # Sample agents
     agents = [
-        MagicMock(
-            to_dict=lambda: {
-                'id': 1,
-                'name': 'Sarah Johnson',
-                'email': 'sarah.johnson@company.com',
-                'phone': '+1-555-0101',
-                'title': 'Sales Manager'
-            }
-        ),
-        MagicMock(
-            to_dict=lambda: {
-                'id': 2,
-                'name': 'Mike Chen',
-                'email': 'mike.chen@company.com',
-                'phone': '+1-555-0102',
-                'title': 'Account Executive'
-            }
-        )
-    ]
+    MagicMock(
+        to_dict=lambda ag={
+            'id': 1,
+            'name': 'Sarah Johnson',
+            'email': 'sarah.johnson@company.com',
+            'phone': '+1-555-0101',
+            'title': 'Sales Manager'
+        }: ag
+    ),
+    MagicMock(
+        to_dict=lambda ag={
+            'id': 2,
+            'name': 'Mike Chen',
+            'email': 'mike.chen@company.com',
+            'phone': '+1-555-0102',
+            'title': 'Account Executive'
+        }: ag
+    )
+]
     
     mock_repo.deals.get_all_deals.return_value = deals
     mock_repo.activities.get_all_activities.return_value = activities
@@ -146,8 +146,8 @@ def create_sample_data():
     
     return mock_repo
 
-
-async def test_embedding_generation(mock_repo):
+@pytest.mark.asyncio
+async def test_embedding_generation(mock_repositories):
     """Test embedding generation"""
     print("="*70)
     print("STEP 2: Generating Embeddings")
@@ -156,7 +156,7 @@ async def test_embedding_generation(mock_repo):
     try:
         from services.embedding_service import EmbeddingService
         
-        embedding_service = EmbeddingService(mock_repo)
+        embedding_service = EmbeddingService(mock_repositories)
         print(f"📦 Embedding model: {embedding_service.model_name}")
         
         print("🔄 Initializing embedding service...")
@@ -185,20 +185,24 @@ async def test_embedding_generation(mock_repo):
         print(f"❌ Error generating embeddings: {e}")
         return None
 
-
-async def test_vector_store(mock_repo, embedding_service):
+@pytest.mark.asyncio
+async def test_vector_store(mock_repositories):
     """Test vector store initialization and data indexing"""
     print("="*70)
     print("STEP 3: Initializing Vector Store (ChromaDB)")
     print("="*70)
+    embedding_service = await test_embedding_generation(mock_repositories)
     
+    if embedding_service is None:
+        print("⚠️  Skipping - embedding service not available")
+        return None
     try:
         from services.vector_store_service import VectorStoreService
         import tempfile
         
         # Use temporary directory for ChromaDB
         with tempfile.TemporaryDirectory() as tmpdir:
-            vector_store = VectorStoreService(mock_repo, persist_dir=tmpdir)
+            vector_store = VectorStoreService(mock_repositories, persist_dir=tmpdir)
             print(f"📂 ChromaDB persist directory: {tmpdir}")
             
             print("🔄 Initializing vector store...")
@@ -240,22 +244,30 @@ async def test_vector_store(mock_repo, embedding_service):
         traceback.print_exc()
         return None
 
-
-async def test_semantic_search(mock_repo, embedding_service, vector_store):
+@pytest.mark.asyncio
+async def test_semantic_search(mock_repositories):
     """Test semantic search functionality"""
     print("="*70)
     print("STEP 5: Testing Semantic Search")
     print("="*70)
+    vector_store = await test_vector_store(mock_repositories)
     
-    if embedding_service is None or vector_store is None:
-        print("⚠️  Skipping search tests - embedding service or vector store not available")
+    if vector_store is None:
+        print("⚠️  Skipping - vector store not available")
+        return
+    
+    # Need embedding_service too
+    embedding_service = await test_embedding_generation(mock_repositories)
+    
+    if embedding_service is None:
+        print("⚠️  Skipping - embedding service not available")
         return
     
     try:
         from services.rag_search_service import RAGSearchService
         
         # Initialize RAG search service
-        rag_service = RAGSearchService(mock_repo)
+        rag_service = RAGSearchService(mock_repositories)
         rag_service.embedding_service = embedding_service
         rag_service.vector_store_service = vector_store
         rag_service._initialized = True
