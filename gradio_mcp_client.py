@@ -1,536 +1,294 @@
+#!/usr/bin/env python3
 """
-Integration module for RAG search in Gradio interface with caching
-Add this to gradio_mcp_client.py
-
-Place this code in the appropriate section of gradio_mcp_client.py
+Gradio MCP Client Interface
+Web interface for Persian Deal Analyzer using Gradio
 """
 
-import asyncio
-import logging
-from typing import Dict, List, Tuple, Any
 import gradio as gr
+import pandas as pd
+import plotly.graph_objects as go
+import logging
+from typing import Dict, List, Any
+import os
+import sys
+from pathlib import Path
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class CAGSearchManager:
-    """Manages CAG search in Gradio"""
+# Add project root to path
+project_root = Path(__file__).parent
+sys.path.insert(0, str(project_root))
+
+# Import services
+try:
+    from database.database import create_database_manager
+    from models.repositories import create_repositories
+    from services.analytics_service import AnalyticsService
+    from services.sentiment_service import SentimentService
+    from services.deal_service import DealService
+    logger.info("✅ Services imported successfully")
+except ImportError as e:
+    logger.error(f"❌ Failed to import services: {e}")
+    services_available = False
+else:
+    services_available = True
+
+
+class GradioMCPClient:
+    """Gradio interface for Persian Deal Analyzer"""
     
     def __init__(self):
-        self.cag_manager = None
-        self.initialized = False
+        """Initialize the Gradio client"""
+        self.db_manager = None
+        self.repositories = None
+        self.analytics_service = None
+        self.sentiment_service = None
+        self.deal_service = None
+        
+        if services_available:
+            self.initialize_services()
     
-    async def initialize(self):
-        """Initialize CAG"""
+    def initialize_services(self):
+        """Initialize backend services"""
         try:
-            from services.cag_orchestrator_service import CAGSearchManager as CAGMgr
-            from services.cag_orchestrator_service import CAGOrchestrator
-            from database.database import create_database_manager
-            from models.repositories import create_repositories
-            
-            db = create_database_manager()
-            repos = create_repositories(db)
-            
-            orchestrator = CAGOrchestrator(repos)
-            await orchestrator.initialize()
-            
-            self.cag_manager = CAGMgr(orchestrator)
-            self.initialized = True
-            logger.info("✅ CAG initialized")
-            return True
+            self.db_manager = create_database_manager()
+            self.repositories = create_repositories(self.db_manager)
+            self.sentiment_service = SentimentService(self.repositories)
+            self.analytics_service = AnalyticsService(self.repositories, self.sentiment_service)
+            self.deal_service = DealService(self.repositories)
+            logger.info("✅ All services initialized")
+            logger.info(f"ℹ️  Sentiment model will load on first use")
         except Exception as e:
-            logger.error(f"❌ CAG init failed: {e}")
-            return False
+            logger.error(f"⚠️  Failed to initialize services: {e}")
+            import traceback
+            traceback.print_exc()
     
-    def search(self, query: str, doc_type: str = 'deal', n_results: int = 5) -> Dict[str, Any]:
-        """Search with CAG"""
-        if not self.initialized:
-            return {'error': 'Not initialized'}
+    def analyze_deal(self, deal_id: str) -> Dict[str, Any]:
+        """Analyze a single deal"""
+        if not self.analytics_service:
+            return {"error": "Analytics service not available"}
         
         try:
-            if doc_type == 'deal':
-                return self.cag_manager.search_deals(query, n_results)
-            elif doc_type == 'activity':
-                return self.cag_manager.search_activities(query, n_results)
-            elif doc_type == 'agent':
-                return self.cag_manager.search_agents(query, n_results)
-            else:
-                return self.cag_manager.search(query, n_results=n_results)
-        except Exception as e:
-            logger.error(f"Search failed: {e}")
-            return {'error': str(e)}
-    
-    def get_stats(self) -> Dict[str, Any]:
-        """Get CAG stats"""
-        if not self.initialized:
-            return {}
-        return self.cag_manager.get_stats()
-
-
-# Global manager
-cag_manager = CAGSearchManager()
-
-
-def format_cag_results(result: Dict[str, Any]) -> str:
-    """Format CAG results for Gradio"""
-    
-    if 'error' in result:
-        return f"❌ Error: {result['error']}"
-    
-    correction = result.get('correction', {})
-    metrics = result.get('confidence_metrics', {})
-    results = result.get('results', {})
-    
-    output = "### 🤖 CAG Search Results\n\n"
-    
-    # Correction info
-    if correction.get('applied'):
-        output += f"🔄 **Query Corrected** (Rewrites: {correction.get('rewrites_used', [])})\n\n"
-    
-    output += f"📊 **Confidence:** {metrics.get('average_score', 0):.1%}\n"
-    output += f"✅ **Pass Rate:** {metrics.get('pass_rate', 0):.1%}\n"
-    output += f"⏱️ **Time:** {result.get('execution_time', 0):.3f}s\n\n"
-    
-    # Results by type
-    for entity_type in ['deals', 'activities', 'agents']:
-        docs = results.get(entity_type, [])
-        if docs:
-            output += f"#### {entity_type.upper()} ({len(docs)})\n\n"
-            for i, doc in enumerate(docs[:5], 1):
-                output += f"**{i}.** {doc.get('text', 'N/A')[:80]}\n"
-            output += "\n"
-    
-    return output
-
-
-def cag_search_handler(query: str, doc_type: str, n_results: int) -> Tuple[str, str]:
-    """Handle CAG search"""
-    
-    if not query.strip():
-        return "❌ Enter query", ""
-    
-    if not cag_manager.initialized:
-        return "❌ Not initialized", ""
-    
-    result = cag_manager.search(query, doc_type, n_results)
-    formatted = format_cag_results(result)
-    
-    # Plain text export
-    plain = f"Query: {query}\n"
-    plain += f"Correction Applied: {result.get('correction', {}).get('applied', False)}\n"
-    plain += f"Confidence: {result.get('confidence_metrics', {}).get('average_score', 0):.1%}\n\n"
-    
-    for entity_type in ['deals', 'activities', 'agents']:
-        for doc in result.get('results', {}).get(entity_type, []):
-            plain += f"{doc.get('text', 'N/A')}\n"
-    
-    return formatted, plain
-
-
-def cag_init_handler() -> str:
-    """Initialize CAG"""
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    
-    success = loop.run_until_complete(cag_manager.initialize())
-    
-    if success:
-        return "✅ **CAG Ready**\n\nCorrective Augmented Generation enabled"
-    else:
-        return "❌ **CAG Init Failed**"
-
-
-def cag_stats_handler() -> str:
-    """Get CAG stats"""
-    if not cag_manager.initialized:
-        return "Not initialized"
-    
-    stats = cag_manager.get_stats()
-    
-    output = "### 📈 CAG Statistics\n\n"
-    output += f"**Total Searches:** {stats.get('total_searches', 0)}\n"
-    output += f"**Rewrites Triggered:** {stats.get('rewrites_triggered', 0)}\n"
-    output += f"**Rewrite Rate:** {stats.get('rewrite_rate', 0):.1%}\n"
-    output += f"**Success Rate:** {stats.get('success_rate', 0):.1%}\n"
-    
-    return output
-
-
-def create_cag_tab() -> None:
-    """Create CAG search tab in Gradio"""
-    
-    with gr.Tab("🤖 CAG Search"):
-        gr.Markdown("## 🤖 Corrective Augmented Generation")
-        gr.Markdown("Smart semantic search that corrects queries when confidence is low")
-        
-        # Init section
-        with gr.Group(label="⚙️ Setup"):
-            with gr.Row():
-                init_status = gr.Markdown("🔄 Not initialized")
-                init_btn = gr.Button("Initialize CAG", variant="primary", size="lg")
-            
-            stats_output = gr.Markdown("Stats will appear here...")
-        
-        # Search section
-        with gr.Group(label="🔍 Search"):
-            query = gr.Textbox(
-                label="Search Query",
-                placeholder="e.g., 'enterprise pricing', 'implementation timeline'",
-                lines=2
-            )
-            
-            with gr.Row():
-                doc_type = gr.Radio(
-                    choices=[
-                        ("All", "all"),
-                        ("Deals", "deal"),
-                        ("Activities", "activity"),
-                        ("Agents", "agent")
-                    ],
-                    value="all",
-                    label="Entity Type"
-                )
-                
-                n_results = gr.Slider(
-                    minimum=1, maximum=20, value=5, step=1,
-                    label="Results"
-                )
-            
-            search_btn = gr.Button("Search with CAG", variant="primary", size="lg")
-            
-            results = gr.Markdown("Results appear here...")
-            
-            with gr.Accordion("📥 Export", open=False):
-                export_text = gr.Textbox(lines=8, interactive=False)
-                gr.Button("Download").click(
-                    lambda x: x, inputs=[export_text]
-                )
-        
-        # Event handlers
-        init_btn.click(
-            cag_init_handler,
-            outputs=[init_status]
-        ).then(
-            cag_stats_handler,
-            outputs=[stats_output]
-        )
-        
-        search_btn.click(
-            cag_search_handler,
-            inputs=[query, doc_type, n_results],
-            outputs=[results, export_text]
-        )
-
-
-# IN gradio_mcp_client.py main(), add to gr.Blocks():
-# create_cag_tab()
-class RAGSearchManager:
-    """Manages RAG search operations in Gradio with caching"""
-    
-    def __init__(self):
-        self.rag_service = None
-        self.cached_rag_service = None
-        self.initialized = False
-        self.cache_stats_updated = False
-    
-    async def initialize_rag(self):
-        """Initialize RAG search service with caching"""
-        try:
-            from services.rag_search_service import RAGSearchService
-            from services.rag_search_cache_service import RAGSearchWithCache
-            from database.database import create_database_manager
-            from models.repositories import create_repositories
-            
-            # Initialize database and repositories
-            db_manager = create_database_manager()
-            repositories = create_repositories(db_manager)
-            
-            # Initialize RAG service
-            self.rag_service = RAGSearchService(repositories)
-            await self.rag_service.initialize()
-            
-            # Index all data
-            await self.rag_service.index_all_data()
-            
-            # Wrap with caching
-            self.cached_rag_service = RAGSearchWithCache(self.rag_service)
-            
-            self.initialized = True
-            logger.info("✅ RAG service initialized with caching")
-            return True
-        except Exception as e:
-            logger.error(f"❌ RAG initialization failed: {e}")
-            return False
-    
-    def search(self, query: str, search_type: str = "all", n_results: int = 5) -> Dict[str, Any]:
-        """
-        Perform semantic search with caching
-        
-        Args:
-            query: Search query
-            search_type: 'all', 'deals', 'activities', or 'agents'
-            n_results: Number of results
-            
-        Returns:
-            Search results (with cache info)
-        """
-        if not self.initialized or not self.cached_rag_service:
-            return {'error': 'RAG service not initialized'}
-        
-        try:
-            # Use cached search
-            result = self.cached_rag_service.search(query, search_type, n_results)
+            result = self.analytics_service.analyze_deal_comprehensive(deal_id)
             return result
         except Exception as e:
-            logger.error(f"Search failed: {e}")
-            return {'error': str(e)}
+            logger.error(f"Error analyzing deal: {e}")
+            return {"error": str(e)}
     
-    def _format_results(self, results: List[Dict], result_type: str) -> Dict[str, Any]:
-        """Format results for display"""
-        return {
-            'status': 'success',
-            'query': '',
-            'results': {result_type: results},
-            'total_matches': len(results)
-        }
-    
-    def get_stats(self) -> Dict[str, Any]:
-        """Get index statistics"""
-        if not self.initialized or not self.rag_service:
-            return {'error': 'RAG service not initialized'}
+    def get_portfolio_overview(self) -> Dict[str, Any]:
+        """Get portfolio overview"""
+        if not self.analytics_service:
+            return {"error": "Analytics service not available"}
         
         try:
-            return self.rag_service.get_index_stats()
+            result = self.analytics_service.analyze_portfolio_overview()
+            return result
         except Exception as e:
-            logger.error(f"Failed to get stats: {e}")
-            return {'error': str(e)}
+            logger.error(f"Error getting portfolio overview: {e}")
+            return {"error": str(e)}
     
-    def get_cache_info(self) -> Dict[str, Any]:
-        """Get cache statistics and info"""
-        if not self.initialized or not self.cached_rag_service:
-            return {'error': 'Cache not available'}
+    def analyze_sentiment(self, text: str) -> Dict[str, Any]:
+        """Analyze sentiment of text"""
+        if not text or not text.strip():
+            return {"error": "Please enter some text to analyze"}
+        
+        if not self.sentiment_service:
+            return {"error": "Sentiment service not available"}
+        
+        # Ensure model is loaded
+        if not self.sentiment_service.model_loaded:
+            logger.info("Loading sentiment model (first use)...")
+            try:
+                import asyncio
+                asyncio.run(self.sentiment_service.initialize())
+                logger.info("✅ Sentiment model loaded successfully")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize sentiment model: {e}")
+                return {
+                    "sentiment": "unknown",
+                    "confidence": 0.0,
+                    "error": f"Model not available: {str(e)}"
+                }
         
         try:
-            return self.cached_rag_service.get_cache_info()
+            result = self.sentiment_service.analyze_text(text)
+            if result and "error" not in result:
+                logger.info(f"Sentiment analysis: {result}")
+            return result
         except Exception as e:
-            logger.error(f"Failed to get cache info: {e}")
-            return {'error': str(e)}
+            logger.error(f"Error analyzing sentiment: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "sentiment": "unknown",
+                "confidence": 0.0,
+                "error": f"Analysis failed: {str(e)}"
+            }
     
-    def clear_cache(self) -> str:
-        """Clear search cache"""
-        if not self.initialized or not self.cached_rag_service:
-            return "❌ Cache not available"
+    def format_portfolio_data(self, data: Dict[str, Any]) -> tuple:
+        """Format portfolio data for display"""
+        if "error" in data:
+            return str(data), None
         
-        try:
-            count = self.cached_rag_service.clear_cache()
-            return f"✅ Cache cleared ({count} entries removed)"
-        except Exception as e:
-            logger.error(f"Failed to clear cache: {e}")
-            return f"❌ Error: {e}"
-
-
-# Global RAG manager instance
-rag_manager = RAGSearchManager()
-
-
-def format_search_results(results: Dict[str, Any]) -> str:
-    """Format search results for Gradio display"""
-    
-    if 'error' in results:
-        return f"❌ **Error:** {results['error']}"
-    
-    if results.get('status') == 'error':
-        return f"❌ **Search Error:** {results.get('error', 'Unknown error')}"
-    
-    output = f"### 🔍 Search Results\n\n"
-    output += f"**Query:** {results.get('query', 'N/A')}\n"
-    output += f"**Total Matches:** {results.get('total_matches', 0)}\n\n"
-    
-    results_data = results.get('results', {})
-    
-    for entity_type in ['deals', 'activities', 'agents']:
-        matches = results_data.get(entity_type, [])
+        # Create summary text
+        summary = f"""
+        📊 Portfolio Overview
         
-        if matches:
-            output += f"## 📄 {entity_type.upper()} ({len(matches)} matches)\n\n"
-            
-            for i, match in enumerate(matches, 1):
-                output += f"**{i}. {entity_type[:-1].title()}**\n"
-                output += f"- **ID:** {match.get('id')}\n"
-                output += f"- **Text:** {match.get('text', 'N/A')[:100]}...\n"
-                output += f"- **Similarity Score:** {match.get('similarity_score', 0):.4f}\n"
+        Total Deals: {data.get('summary', {}).get('total_deals', 0)}
+        Active Deals: {data.get('summary', {}).get('active_deals', 0)}
+        Total Value: {data.get('summary', {}).get('total_value', 0)}
+        
+        Status Distribution:
+        """
+        
+        for status, count in data.get('status_distribution', {}).items():
+            summary += f"\n  • {status}: {count}"
+        
+        return summary, None
+    
+    def format_deal_analysis(self, data: Dict[str, Any]) -> str:
+        """Format deal analysis for display"""
+        if "error" in data:
+            return str(data)
+        
+        analysis = f"""
+        🎯 Deal Analysis
+        
+        Health Score: {data.get('health_score', 0)}/100
+        Status: {data.get('deal_status', 'Unknown')}
+        
+        Risk Indicators:
+        """
+        
+        for risk in data.get('risk_indicators', []):
+            analysis += f"\n  ⚠️  {risk}"
+        
+        analysis += "\n\nRecommendations:"
+        for rec in data.get('recommendations', []):
+            analysis += f"\n  ✓ {rec}"
+        
+        return analysis
+    
+    def format_sentiment_result(self, data: Dict[str, Any]) -> str:
+        """Format sentiment analysis result"""
+        if "error" in data:
+            return str(data)
+        
+        sentiment = data.get("sentiment", "unknown")
+        confidence = data.get("confidence", 0)
+        
+        emoji = "😊" if sentiment == "positive" else "😞" if sentiment == "negative" else "😐"
+        
+        return f"""
+        {emoji} Sentiment Analysis
+        
+        Sentiment: {sentiment}
+        Confidence: {confidence:.2%}
+        """
+
+
+# Create global client instance
+client = GradioMCPClient()
+
+
+def create_interface():
+    """Create Gradio interface"""
+    
+    with gr.Blocks(title="Persian Deal Analyzer") as app:
+        gr.Markdown("# 🎯 Persian Deal Analyzer - MCP Client")
+        gr.Markdown("Analyze deals, sentiment, and portfolio performance")
+        
+        with gr.Tabs():
+            # Tab 1: Deal Analysis
+            with gr.Tab("📈 Deal Analysis"):
+                gr.Markdown("### Analyze Individual Deal")
+                with gr.Row():
+                    deal_id = gr.Textbox(label="Deal ID", placeholder="Enter deal ID")
+                    analyze_btn = gr.Button("Analyze Deal")
                 
-                # Show metadata
-                metadata = match.get('metadata', {})
-                if metadata:
-                    output += f"- **Details:** {', '.join(f'{k}: {v}' for k, v in list(metadata.items())[:3])}\n"
+                deal_output = gr.Textbox(label="Analysis Result", lines=10)
                 
-                output += "\n"
-    
-    return output
-
-
-def format_stats(stats_result: Dict[str, Any]) -> str:
-    """Format index statistics for display"""
-    
-    if 'error' in stats_result:
-        return f"❌ **Error:** {stats_result['error']}"
-    
-    stats = stats_result.get('stats', {})
-    
-    output = "### 📊 Index Statistics\n\n"
-    output += f"**Total Indexed Documents:** {stats.get('total_documents', 0)}\n\n"
-    
-    output += "#### Collections\n\n"
-    
-    for collection_name in ['deals', 'activities', 'agents']:
-        collection_stats = stats.get(collection_name, {})
-        count = collection_stats.get('document_count', 0)
-        output += f"- **{collection_name.title()}:** {count} documents\n"
-    
-    return output
-
-
-def rag_search_handler(query: str, search_type: str, n_results: int) -> Tuple[str, str]:
-    """Handle RAG search from Gradio interface"""
-    
-    if not query or query.strip() == "":
-        return "❌ **Error:** Please enter a search query", ""
-    
-    if not rag_manager.initialized:
-        return "❌ **Error:** RAG service not initialized. Please initialize first.", ""
-    
-    # Perform search
-    results = rag_manager.search(query, search_type, n_results)
-    
-    # Format results
-    formatted_results = format_search_results(results)
-    
-    # Extract plain text for export
-    plain_text = f"Search Query: {query}\n"
-    plain_text += f"Search Type: {search_type}\n"
-    plain_text += f"Results: {results.get('total_matches', 0)} matches\n\n"
-    
-    for entity_type in ['deals', 'activities', 'agents']:
-        matches = results.get('results', {}).get(entity_type, [])
-        if matches:
-            plain_text += f"\n{entity_type.upper()}:\n"
-            for match in matches:
-                plain_text += f"- {match.get('text', 'N/A')}\n"
-    
-    return formatted_results, plain_text
-
-
-def initialize_rag_handler() -> str:
-    """Initialize RAG service"""
-    try:
-        # Run async initialization in event loop
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    
-    success = loop.run_until_complete(rag_manager.initialize_rag())
-    
-    if success:
-        return "✅ **RAG Service Initialized**\n\nData indexed and ready for semantic search."
-    else:
-        return "❌ **Initialization Failed**\n\nCould not initialize RAG service. Check logs for details."
-
-
-def get_stats_handler() -> str:
-    """Get and display index statistics"""
-    stats = rag_manager.get_stats()
-    return format_stats(stats)
-
-
-def create_rag_search_tab() -> None:
-    """
-    Create RAG search tab in Gradio interface
-    
-    Add this to the gr.Blocks() in gradio_mcp_client.py
-    """
-    
-    with gr.Tab("🔍 Semantic Search (RAG)"):
-        gr.HTML("<h2>🔍 Semantic Search</h2>")
-        gr.HTML("<p>Search through your CRM data using natural language. Find deals, activities, and agents semantically.</p>")
-        
-        # Initialization section
-        with gr.Group(label="🚀 Initialization"):
-            with gr.Row():
-                init_status = gr.Markdown("ℹ️ RAG service not initialized yet")
-                init_btn = gr.Button("Initialize RAG Service", variant="primary", size="lg")
-            
-            stats_output = gr.Markdown("Waiting for initialization...")
-        
-        # Search section
-        with gr.Group(label="🔎 Search"):
-            with gr.Row():
-                search_query = gr.Textbox(
-                    label="Search Query",
-                    placeholder="e.g., 'pricing concerns', 'implementation timeline', 'Sarah Johnson'",
-                    lines=2
+                analyze_btn.click(
+                    fn=lambda id: client.format_deal_analysis(client.analyze_deal(id)),
+                    inputs=[deal_id],
+                    outputs=[deal_output]
                 )
             
-            with gr.Row():
-                search_type = gr.Dropdown(
-                    choices=[
-                        ("All (Deals + Activities + Agents)", "all"),
-                        ("Deals Only", "deals"),
-                        ("Activities Only", "activities"),
-                        ("Agents Only", "agents")
-                    ],
-                    value="all",
-                    label="Search Type"
-                )
+            # Tab 2: Portfolio Overview
+            with gr.Tab("🏢 Portfolio Overview"):
+                gr.Markdown("### Portfolio Summary")
+                portfolio_btn = gr.Button("Get Portfolio Overview")
+                portfolio_output = gr.Textbox(label="Portfolio Data", lines=15)
                 
-                n_results = gr.Slider(
-                    minimum=1,
-                    maximum=20,
-                    value=5,
-                    step=1,
-                    label="Number of Results"
+                portfolio_btn.click(
+                    fn=lambda: client.format_portfolio_data(client.get_portfolio_overview()),
+                    inputs=[],
+                    outputs=[portfolio_output]
                 )
+            
+            # Tab 3: Sentiment Analysis
+            with gr.Tab("💬 Sentiment Analysis"):
+                gr.Markdown("### Analyze Text Sentiment")
+                gr.Markdown("⏳ Note: Model loads on first use (may take 1-2 minutes)")
+                with gr.Row():
+                    sentiment_input = gr.Textbox(
+                        label="Enter Persian Text",
+                        placeholder="متن فارسی را وارد کنید...",
+                        lines=3
+                    )
+                    sentiment_btn = gr.Button("🔍 Analyze Sentiment")
                 
-                search_btn = gr.Button("Search", variant="primary", size="lg")
-            
-            # Results section
-            search_results = gr.Markdown(label="Search Results", value="Run a search to see results...")
-            
-            # Export section
-            with gr.Accordion("📥 Export Results", open=False):
-                export_text = gr.Textbox(
-                    label="Export as Text",
-                    lines=10,
-                    max_lines=20,
-                    interactive=False
+                sentiment_output = gr.Textbox(label="Sentiment Result", lines=5)
+                
+                sentiment_btn.click(
+                    fn=lambda text: client.format_sentiment_result(client.analyze_sentiment(text)),
+                    inputs=[sentiment_input],
+                    outputs=[sentiment_output]
                 )
-                download_btn = gr.Button("Download as TXT", variant="secondary")
-        
-        # Event handlers
-        init_btn.click(
-            initialize_rag_handler,
-            outputs=[init_status]
-        ).then(
-            get_stats_handler,
-            outputs=[stats_output]
-        )
-        
-        search_btn.click(
-            rag_search_handler,
-            inputs=[search_query, search_type, n_results],
-            outputs=[search_results, export_text]
-        )
-        
-        # Auto-get stats on initialization
-        init_btn.click(
-            get_stats_handler,
-            outputs=[stats_output]
-        )
+            
+            # Tab 4: About
+            with gr.Tab("ℹ️ About"):
+                gr.Markdown("""
+                ## Persian Deal Analyzer
+                
+                A comprehensive system for analyzing Persian business deals with:
+                - **Deal Analytics**: Health scores, risk identification, recommendations
+                - **Sentiment Analysis**: Understanding emotions in deal communications
+                - **Portfolio Management**: Overview of all active deals
+                
+                ### Features
+                - ✅ Real-time deal analysis
+                - ✅ Persian text sentiment analysis
+                - ✅ Portfolio health metrics
+                - ✅ Risk identification
+                - ✅ Actionable recommendations
+                
+                ### Version
+                v1.0.0
+                """)
+    
+    return app
 
 
-# Usage in main gradio_mcp_client.py:
-# Inside the gr.Blocks() context, add:
-# create_rag_search_tab()
+def run_gradio_app():
+    """Launch the Gradio application"""
+    logger.info("Creating Gradio interface...")
+    app = create_interface()
+    
+    logger.info("🚀 Launching Gradio application...")
+    logger.info("📱 Access the interface at: http://localhost:7860")
+    logger.info("💡 Press Ctrl+C to stop the server")
+    
+    app.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        share=False,
+        debug=True,
+        show_error=True
+    )
+
+
+if __name__ == "__main__":
+    run_gradio_app()

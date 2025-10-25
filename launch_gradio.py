@@ -30,34 +30,7 @@ def setup_environment():
     
     return current_dir
 
-def check_dependencies():
-    """Check if all required dependencies are installed"""
-    required_packages = [
-        'gradio',
-        'pandas',
-        'plotly',
-        'transformers',
-        'tensorflow'
-    ]
-    
-    missing_packages = []
-    
-    for package in required_packages:
-        try:
-            __import__(package)
-            logger.info(f"✅ {package} is installed")
-        except ImportError:
-            missing_packages.append(package)
-            logger.error(f"❌ {package} is missing")
-    
-    if missing_packages:
-        logger.error(f"Missing packages: {', '.join(missing_packages)}")
-        logger.error("Please install missing packages using:")
-        logger.error(f"pip install {' '.join(missing_packages)}")
-        return False
-    
-    logger.info("All dependencies are satisfied")
-    return True
+
 def run_gradio_app():
     """Run the Gradio application"""
     print("Starting Gradio interface...")
@@ -80,9 +53,7 @@ def main():
     logger.info(f"Working directory: {current_dir}")
     
     # Check dependencies
-    if not check_dependencies():
-        logger.error("Dependency check failed. Exiting...")
-        return 1
+    
     
     try:
         # Import and run the Gradio app

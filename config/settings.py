@@ -107,7 +107,7 @@ class STTSettings:
     CACHE_DIR = PROJECT_ROOT / "models"
     
     # Audio processing
-    AUDIO_DIR = PROJECT_ROOT / "audio_files"
+    AUDIO_DIR = Path(os.getenv('AUDIO_DIR', PROJECT_ROOT / "audio_files"))
     SUPPORTED_FORMATS = ['.mp3', '.wav', '.m4a', '.flac', '.ogg', '.webm']
     MAX_AUDIO_SIZE_MB = 100
     SAMPLE_RATE = 16000  # Whisper expects 16kHz
