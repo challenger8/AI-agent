@@ -8,8 +8,11 @@ import pytest
 import sys
 import os
 import tempfile
+import uuid
 from pathlib import Path
 from unittest.mock import Mock
+from datetime import datetime, timedelta
+from decimal import Decimal
 from dotenv import load_dotenv
 
 # Load environment
@@ -21,6 +24,7 @@ sys.path.insert(0, str(project_root))
 
 from database.database import create_database_manager
 from models.repositories import create_repositories
+from models.deal_model import Deal, DealActivity, CRMAgent
 from services.deal_service import DealService
 from services.sentiment_service import SentimentService
 from services.analytics_service import AnalyticsService
@@ -175,7 +179,330 @@ def integration_embedding_service(integration_repositories):
 
 
 # ============================================================================
-# TEST DATA FIXTURES (function scope for fresh data per test)
+# SAMPLE DATA FIXTURES - For testing with realistic data
+# ============================================================================
+
+@pytest.fixture(scope="function")
+def sample_deal():
+    """Sample Deal with realistic Persian data"""
+    return Deal(
+        Id=str(uuid.uuid4()),
+        Title='فروش محصول نرم‌افزاری',
+        Description='پروژه فروش سیستم ERP برای شرکت بزرگ',
+        RegisterTime=datetime.now() - timedelta(days=30),
+        Price=Decimal('50000000'),
+        Status='در حال پیگیری',
+        PipelineStageId='stage-001',
+        PipelineId='pipeline-001',
+        ChangeToWonTime=None,
+        ChangeToLossTime=None,
+        LastTrackingTime=datetime.now() - timedelta(days=2),
+        NextTrackingTime=datetime.now() + timedelta(days=3),
+        ExpectedCloseDate=datetime.now() + timedelta(days=30),
+        LastActivityUpdateTime=datetime.now() - timedelta(days=1),
+        LastUpdateTime=datetime.now(),
+        Probability=0.65,
+        ContactId='contact-001',
+        OwnerId='owner-001',
+        CreatorId='creator-001',
+        LabelId='label-001',
+        LostReasonId=None,
+        Pin=False,
+        IsIdle=False,
+        IsRotten=False,
+        Fields='{}',
+        Items='[]',
+        MobilePhone='+98912345678'
+    )
+
+
+@pytest.fixture(scope="function")
+def sample_deals_list():
+    """Sample list of Deals with different statuses"""
+    deals = []
+    statuses = ['Pending','Lost','Won']
+    
+    for i in range(10):
+        deal = Deal(
+            Id=str(uuid.uuid4()),
+            Title=f'سند فروش شماره {i+1}',
+            Description=f'توضیح پروژه شماره {i+1}',
+            RegisterTime=datetime.now() - timedelta(days=50-i*5),
+            Price=Decimal(str(10000000 * (i+1))),
+            Status=statuses[i % 3],
+            PipelineStageId=f'stage-{i%5}',
+            PipelineId='pipeline-001',
+            ChangeToWonTime=datetime.now() - timedelta(days=5) if i % 3 == 1 else None,
+            ChangeToLossTime=datetime.now() - timedelta(days=10) if i % 3 == 2 else None,
+            LastTrackingTime=datetime.now() - timedelta(days=i),
+            NextTrackingTime=datetime.now() + timedelta(days=i+5),
+            ExpectedCloseDate=datetime.now() + timedelta(days=60-i*5),
+            LastActivityUpdateTime=datetime.now() - timedelta(days=i+1),
+            LastUpdateTime=datetime.now(),
+            Probability=max(0.1, 0.8 - (i*0.05)),
+            ContactId=f'contact-{i}',
+            OwnerId=f'owner-{i%3}',
+            CreatorId='creator-001',
+            LabelId=f'label-{i%4}',
+            LostReasonId=None,
+            Pin=False,
+            IsIdle=i % 5 == 0,
+            IsRotten=i % 7 == 0,
+            Fields='{}',
+            Items='[]',
+            MobilePhone=f'+9891234567{i}'
+        )
+        deals.append(deal)
+    
+    return deals
+
+
+@pytest.fixture(scope="function")
+def sample_activity(sample_deal):
+    """Sample DealActivity for a deal"""
+    return DealActivity(
+        id=str(uuid.uuid4()),
+        title='تماس تلفنی با مشتری',
+        note='مشتری برای دیدار توافق کرد',
+        resultnote='نتیجه: موفق - قرار ملاقات تنظیم شد',
+        activitytypeid='call',
+        isprivate=False,
+        isdone=True,
+        ispinned=False,
+        duedate=datetime.now() - timedelta(days=5),
+        finishdate=datetime.now() - timedelta(days=5),
+        donedate=datetime.now() - timedelta(days=5),
+        registerdate=datetime.now() - timedelta(days=5),
+        lastupdatetime=datetime.now() - timedelta(days=5),
+        dealid=sample_deal.Id,
+        creatorid='creator-001',
+        ownerid='owner-001',
+        updaterid='updater-001',
+        sentiment_score=0.8,
+        sentiment_label='مثبت'
+    )
+
+
+@pytest.fixture(scope="function")
+def sample_activities_list(sample_deal):
+    """Sample list of DealActivities"""
+    activities = []
+    activity_types = ['call', 'meeting', 'email', 'note']
+    sentiments = ['مثبت', 'خنثی', 'منفی']
+    titles = [
+        'تماس تلفنی با مشتری',
+        'جلسه حضوری',
+        'ارسال پیشنهاد',
+        'پیگیری پس از جلسه',
+        'مذاکره قیمت',
+    ]
+    
+    for i in range(12):
+        activity = DealActivity(
+            id=str(uuid.uuid4()),
+            title=titles[i % len(titles)],
+            note=f'یادداشت فعالیت شماره {i+1}',
+            resultnote=f'نتیجه: {"موفق" if i % 2 == 0 else "نیاز به پیگیری"}',
+            activitytypeid=activity_types[i % 4],
+            isprivate=False,
+            isdone=i % 3 != 0,
+            ispinned=i == 0,
+            duedate=datetime.now() - timedelta(days=20-i),
+            finishdate=datetime.now() - timedelta(days=20-i) if i % 3 != 0 else None,
+            donedate=datetime.now() - timedelta(days=20-i) if i % 3 != 0 else None,
+            registerdate=datetime.now() - timedelta(days=25-i),
+            lastupdatetime=datetime.now() - timedelta(days=18-i),
+            dealid=sample_deal.Id,
+            creatorid=f'creator-{i%2}',
+            ownerid='owner-001',
+            updaterid='updater-001',
+            sentiment_score=0.4 + (i % 3) * 0.25,
+            sentiment_label=sentiments[i % 3]
+        )
+        activities.append(activity)
+    
+    return activities
+
+
+@pytest.fixture(scope="function")
+def sample_agent():
+    """Sample CRM Agent"""
+    return CRMAgent(
+        id=str(uuid.uuid4()),
+        groupowner='تیم فروش اصلی',
+        ownername='علی احمدی',
+        adminid='admin-001',
+        role='Senior Sales Executive',
+        phone='+9851234567',
+        mobilephone='+989123456789',
+        personalid='1001234567',
+        groupphone='+9851234500'
+    )
+
+
+@pytest.fixture(scope="function")
+def sample_agents_list():
+    """Sample list of CRM Agents"""
+    agents = []
+    agent_names = ['علی احمدی', 'فاطمه رضوی', 'حسن محمودی', 'مریم کریمی']
+    
+    for i, name in enumerate(agent_names):
+        agent = CRMAgent(
+            id=str(uuid.uuid4()),
+            groupowner=f'تیم {i+1}',
+            ownername=name,
+            adminid=f'admin-{i}',
+            role=['Sales Manager', 'Senior Executive', 'Coordinator', 'Analyst'][i],
+            phone=f'+985{1000+i*100}',
+            mobilephone=f'+98912345{600+i}',
+            personalid=f'{1000+i}00000000',
+            groupphone=f'+985{1200+i*100}'
+        )
+        agents.append(agent)
+    
+    return agents
+
+
+# ============================================================================
+# SCENARIO FIXTURES - Complex scenarios with multiple data
+# ============================================================================
+
+@pytest.fixture(scope="function")
+def healthy_deal_scenario(sample_deal):
+    """Scenario: A healthy deal with good progress"""
+    # Modify deal to be healthy
+    deal = Deal(
+        Id=str(uuid.uuid4()),
+        Title='فروش موفق - نزدیک به پایان',
+        Description='پروژه فروش با پیشرفت خوب',
+        RegisterTime=datetime.now() - timedelta(days=45),
+        Price=Decimal('100000000'),
+        Status='در حال پیگیری',
+        PipelineStageId='stage-advanced',
+        PipelineId='pipeline-001',
+        ChangeToWonTime=None,
+        ChangeToLossTime=None,
+        LastTrackingTime=datetime.now() - timedelta(hours=6),  # Recently tracked
+        NextTrackingTime=datetime.now() + timedelta(days=2),
+        ExpectedCloseDate=datetime.now() + timedelta(days=10),  # Closing soon
+        LastActivityUpdateTime=datetime.now() - timedelta(hours=12),  # Recent activity
+        LastUpdateTime=datetime.now(),
+        Probability=0.85,  # High probability
+        ContactId='contact-001',
+        OwnerId='owner-001',
+        CreatorId='creator-001',
+        LabelId='label-001',
+        LostReasonId=None,
+        Pin=False,
+        IsIdle=False,
+        IsRotten=False,
+        Fields='{}',
+        Items='[]',
+        MobilePhone='+98912345678'
+    )
+    
+    # Create many recent, positive activities
+    activities = []
+    activity_types = ['call', 'meeting', 'email']
+    for i in range(8):
+        activity = DealActivity(
+            id=str(uuid.uuid4()),
+            title=['تماس موفق', 'جلسه مثبت', 'تایید شرایط'][i % 3],
+            note=f'فعالیت مثبت شماره {i+1}',
+            resultnote='نتیجه: بسیار موفق و مثبت',
+            activitytypeid=activity_types[i % 3],
+            isprivate=False,
+            isdone=True,  # All done
+            ispinned=i == 0,
+            duedate=datetime.now() - timedelta(days=10-i),
+            finishdate=datetime.now() - timedelta(days=10-i),
+            donedate=datetime.now() - timedelta(days=10-i),
+            registerdate=datetime.now() - timedelta(days=15-i),
+            lastupdatetime=datetime.now() - timedelta(days=8-i),
+            dealid=deal.Id,
+            creatorid='creator-001',
+            ownerid='owner-001',
+            updaterid='updater-001',
+            sentiment_score=0.85 + (i % 2) * 0.1,  # High positive sentiment
+            sentiment_label='مثبت'  # All positive
+        )
+        activities.append(activity)
+    
+    return {
+        'deal': deal,
+        'activities': activities
+    }
+
+
+@pytest.fixture(scope="function")
+def at_risk_deal_scenario(sample_deal):
+    """Scenario: An at-risk deal with poor progress"""
+    # Modify deal to be at-risk
+    deal = Deal(
+        Id=str(uuid.uuid4()),
+        Title='فروش در خطر - نیاز پیگیری',
+        Description='پروژه فروش با مشکلات و تاخیرها',
+        RegisterTime=datetime.now() - timedelta(days=90),  # Old deal
+        Price=Decimal('50000000'),
+        Status='در حال پیگیری',
+        PipelineStageId='stage-stuck',
+        PipelineId='pipeline-001',
+        ChangeToWonTime=None,
+        ChangeToLossTime=None,
+        LastTrackingTime=datetime.now() - timedelta(days=15),  # Not tracked recently
+        NextTrackingTime=datetime.now() - timedelta(days=3),  # Overdue
+        ExpectedCloseDate=datetime.now() - timedelta(days=20),  # Past deadline
+        LastActivityUpdateTime=datetime.now() - timedelta(days=20),  # Old activity
+        LastUpdateTime=datetime.now() - timedelta(days=15),
+        Probability=0.20,  # Low probability
+        ContactId='contact-002',
+        OwnerId='owner-002',
+        CreatorId='creator-001',
+        LabelId='label-002',
+        LostReasonId=None,
+        Pin=False,
+        IsIdle=True,  # Idle flag
+        IsRotten=True,  # Rotten flag
+        Fields='{}',
+        Items='[]',
+        MobilePhone='+98987654321'
+    )
+    
+    # Create few, old activities with mixed sentiment
+    activities = []
+    activity_types = ['email', 'note', 'call']
+    for i in range(5):
+        activity = DealActivity(
+            id=str(uuid.uuid4()),
+            title=['عدم پاسخ', 'مشکل فنی', 'تاخیر مشتری'][i % 3],
+            note=f'فعالیت منفی یا خنثی شماره {i+1}',
+            resultnote=['بدون نتیجه', 'نیاز تصحیح', 'منتظر پاسخ'][i % 3],
+            activitytypeid=activity_types[i % 3],
+            isprivate=False,
+            isdone=i % 2 == 0,  # Some not done
+            ispinned=False,
+            duedate=datetime.now() - timedelta(days=30-i),
+            finishdate=datetime.now() - timedelta(days=30-i) if i % 2 == 0 else None,
+            donedate=datetime.now() - timedelta(days=30-i) if i % 2 == 0 else None,
+            registerdate=datetime.now() - timedelta(days=40-i),
+            lastupdatetime=datetime.now() - timedelta(days=25-i),
+            dealid=deal.Id,
+            creatorid='creator-001',
+            ownerid='owner-002',
+            updaterid='updater-001',
+            sentiment_score=0.2 + (i % 2) * 0.3,  # Low to neutral sentiment
+            sentiment_label=['منفی', 'خنثی', 'منفی'][i % 3]
+        )
+        activities.append(activity)
+    
+    return {
+        'deal': deal,
+        'activities': activities
+    }
+
+
+# ============================================================================
+# DATABASE SAMPLE FIXTURES (function scope for fresh data per test)
 # ============================================================================
 
 @pytest.fixture(scope="function")
@@ -206,6 +533,16 @@ def sample_activities_from_db(integration_repositories):
         return integration_repositories.activities.get_all_activities()
     except Exception:
         return []
+
+
+# ============================================================================
+# COMPATIBILITY ALIAS
+# ============================================================================
+
+@pytest.fixture(scope="function")
+def test_repositories(integration_repositories):
+    """Alias for compatibility - integration tests use this name"""
+    return integration_repositories
 
 
 # ============================================================================
