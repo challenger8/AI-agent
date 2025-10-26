@@ -8,12 +8,11 @@ import pytest
 from datetime import datetime, timedelta
 from services.analytics_service import AnalyticsService
 from services.deal_service import DealService
-from services.sentiment_service import SentimentService
 
-
+@pytest.mark.unit
 class TestDealServiceStatusDetection:
     """Test new status detection methods in DealService"""
-    
+    @pytest.mark.unit
     def test_detect_status_won_by_timestamp(self, test_repositories):
         """Test detecting WON deal by change_to_won_time column"""
         deal_service = DealService(test_repositories)
@@ -27,7 +26,7 @@ class TestDealServiceStatusDetection:
         
         status = deal_service.detect_deal_status(deal)
         assert status == 'won', f"Expected 'won', got '{status}'"
-    
+    @pytest.mark.unit
     def test_detect_status_lost_by_timestamp(self, test_repositories):
         """Test detecting LOST deal by change_to_loss_time column"""
         deal_service = DealService(test_repositories)
@@ -42,7 +41,7 @@ class TestDealServiceStatusDetection:
         
         status = deal_service.detect_deal_status(deal)
         assert status == 'lost', f"Expected 'lost', got '{status}'"
-    
+    @pytest.mark.unit
     def test_detect_status_open_by_text(self, test_repositories):
         """Test detecting OPEN deal by Status text"""
         deal_service = DealService(test_repositories)
@@ -56,7 +55,7 @@ class TestDealServiceStatusDetection:
         
         status = deal_service.detect_deal_status(deal)
         assert status == 'open', f"Expected 'open', got '{status}'"
-    
+    @pytest.mark.unit
     def test_detect_status_unknown(self, test_repositories):
         """Test detecting UNKNOWN status"""
         deal_service = DealService(test_repositories)
@@ -70,7 +69,7 @@ class TestDealServiceStatusDetection:
         
         status = deal_service.detect_deal_status(deal)
         assert status == 'unknown', f"Expected 'unknown', got '{status}'"
-    
+    @pytest.mark.unit
     def test_get_days_since_last_activity(self, test_repositories, sample_activities_list):
         """Test calculating days since last activity"""
         deal_service = DealService(test_repositories)
@@ -81,7 +80,7 @@ class TestDealServiceStatusDetection:
         days = deal_service.get_days_since_last_activity(sample_activities_list[:1])
         
         assert days == 10, f"Expected 10 days, got {days}"
-    
+    @pytest.mark.unit
     def test_get_days_since_last_activity_no_activities(self, test_repositories):
         """Test with no activities"""
         deal_service = DealService(test_repositories)
@@ -90,10 +89,10 @@ class TestDealServiceStatusDetection:
         
         assert days == 999, f"Expected 999 (no activities), got {days}"
 
-
+@pytest.mark.unit
 class TestHealthScoreScoringWonDeal:
     """Test health score calculation for WON deals"""
-    
+    @pytest.mark.unit
     def test_won_deal_high_score(self, test_repositories, sample_deal, sample_activities_list):
         """Test that WON deals get high score (85+)"""
         analytics_service = AnalyticsService(test_repositories)
@@ -113,7 +112,7 @@ class TestHealthScoreScoringWonDeal:
         
         assert score >= 85, f"WON deal should score >= 85, got {score}"
         assert score <= 100, f"WON deal should not exceed 100, got {score}"
-    
+    @pytest.mark.unit
     def test_won_deal_no_followup_penalty(self, test_repositories, sample_deal):
         """Test that WON deals without followup get penalty"""
         analytics_service = AnalyticsService(test_repositories)
@@ -129,7 +128,7 @@ class TestHealthScoreScoringWonDeal:
         score = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)
         
         assert 70 <= score < 85, f"WON deal without followup should be 70-85, got {score}"
-    
+    @pytest.mark.unit
     def test_won_deal_differs_from_lost_deal(self, test_repositories, sample_deal):
         """Test that WON deal scores are MUCH higher than LOST deal"""
         analytics_service = AnalyticsService(test_repositories)
@@ -152,10 +151,10 @@ class TestHealthScoreScoringWonDeal:
         print(f"\nWON score: {won_score}, LOST score: {lost_score}")
         assert won_score > lost_score + 30, f"WON ({won_score}) should be much higher than LOST ({lost_score})"
 
-
+@pytest.mark.unit
 class TestHealthScoreScoringLostDeal:
     """Test health score calculation for LOST deals"""
-    
+    @pytest.mark.unit
     def test_lost_deal_low_score(self, test_repositories, sample_deal):
         """Test that LOST deals get low score (~20)"""
         analytics_service = AnalyticsService(test_repositories)
@@ -170,7 +169,7 @@ class TestHealthScoreScoringLostDeal:
         score = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)
         
         assert score <= 40, f"LOST deal should score <= 40, got {score}"
-    
+    @pytest.mark.unit
     def test_lost_deal_with_effort_bonus(self, test_repositories, sample_deal, sample_activities_list):
         """Test that LOST deals get bonus if there were many activities"""
         analytics_service = AnalyticsService(test_repositories)
@@ -191,10 +190,10 @@ class TestHealthScoreScoringLostDeal:
         print(f"\nLOST no effort: {score_no_effort}, LOST with effort: {score_with_effort}")
         assert score_with_effort > score_no_effort, "LOST deal with effort should score higher"
 
-
+@pytest.mark.unit
 class TestHealthScoreScoringOpenDeal:
     """Test health score calculation for OPEN deals"""
-    
+    @pytest.mark.unit
     def test_open_deal_recent_activity_bonus(self, test_repositories, sample_deal, sample_activities_list):
         """Test that OPEN deals with recent activity get bonus"""
         analytics_service = AnalyticsService(test_repositories)
@@ -214,7 +213,7 @@ class TestHealthScoreScoringOpenDeal:
         score = analytics_service._calculate_health_score(deal_dict, [recent_activity], sentiment_summary)
         
         assert score >= 60, f"OPEN deal with recent activity should score >= 60, got {score}"
-    
+    @pytest.mark.unit
     def test_open_deal_stale_activity_penalty(self, test_repositories, sample_deal, sample_activities_list):
         """Test that OPEN deals with stale activity get penalty"""
         analytics_service = AnalyticsService(test_repositories)
@@ -234,7 +233,7 @@ class TestHealthScoreScoringOpenDeal:
         score = analytics_service._calculate_health_score(deal_dict, [stale_activity], sentiment_summary)
         
         assert score < 40, f"OPEN deal with stale activity should score < 40, got {score}"
-    
+    @pytest.mark.unit
     def test_open_deal_critical_inactivity_penalty(self, test_repositories, sample_deal, sample_activities_list):
         """Test that OPEN deals with critical inactivity get heavy penalty"""
         analytics_service = AnalyticsService(test_repositories)
@@ -254,7 +253,7 @@ class TestHealthScoreScoringOpenDeal:
         score = analytics_service._calculate_health_score(deal_dict, [old_activity], sentiment_summary)
         
         assert score < 20, f"OPEN deal with critical inactivity should score < 20, got {score}"
-    
+    @pytest.mark.unit
     def test_open_deal_no_activities(self, test_repositories, sample_deal):
         """Test that OPEN deals with no activities get low score"""
         analytics_service = AnalyticsService(test_repositories)
@@ -270,7 +269,7 @@ class TestHealthScoreScoringOpenDeal:
         score = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)
         
         assert score <= 30, f"OPEN deal with no activities should score <= 30, got {score}"
-    
+    @pytest.mark.unit
     def test_open_deal_high_activity_frequency(self, test_repositories, sample_deal, sample_activities_list):
         """Test that OPEN deals with many activities get bonus"""
         analytics_service = AnalyticsService(test_repositories)
@@ -290,7 +289,7 @@ class TestHealthScoreScoringOpenDeal:
         score = analytics_service._calculate_health_score(deal_dict, sample_activities_list[:10], sentiment_summary)
         
         assert score >= 70, f"OPEN deal with many recent activities should score >= 70, got {score}"
-    
+    @pytest.mark.unit
     def test_open_deal_positive_sentiment_bonus(self, test_repositories, sample_deal, sample_activities_list):
         """Test that positive sentiment gives bonus for OPEN deals"""
         analytics_service = AnalyticsService(test_repositories)
@@ -314,7 +313,7 @@ class TestHealthScoreScoringOpenDeal:
         score = analytics_service._calculate_health_score(deal_dict, [recent_activity], sentiment_summary)
         
         assert score >= 70, f"OPEN deal with positive sentiment should score >= 70, got {score}"
-    
+    @pytest.mark.unit
     def test_open_deal_negative_sentiment_penalty(self, test_repositories, sample_deal, sample_activities_list):
         """Test that negative sentiment gives penalty for OPEN deals"""
         analytics_service = AnalyticsService(test_repositories)
@@ -339,10 +338,10 @@ class TestHealthScoreScoringOpenDeal:
         
         assert score < 50, f"OPEN deal with negative sentiment should score < 50, got {score}"
 
-
+@pytest.mark.unit
 class TestRiskIndicatorsWonDeal:
     """Test risk detection for WON deals"""
-    
+    @pytest.mark.unit
     def test_won_deal_minimal_risks(self, test_repositories, sample_deal, sample_activities_list):
         """Test that WON deals have minimal risks"""
         analytics_service = AnalyticsService(test_repositories)
@@ -358,7 +357,7 @@ class TestRiskIndicatorsWonDeal:
         risks = analytics_service._identify_risk_indicators(deal_dict, [recent_activity], health_score=90)
         
         assert len(risks) == 0, f"WON deal with followup should have no risks, got {len(risks)}"
-    
+    @pytest.mark.unit
     def test_won_deal_no_followup_risk(self, test_repositories, sample_deal):
         """Test that WON deals without followup get risk"""
         analytics_service = AnalyticsService(test_repositories)
@@ -373,10 +372,10 @@ class TestRiskIndicatorsWonDeal:
         assert len(risks) == 1, f"WON deal without followup should have 1 risk, got {len(risks)}"
         assert risks[0]['type'] == 'no_followup_after_close'
 
-
+@pytest.mark.unit
 class TestRiskIndicatorsLostDeal:
     """Test risk detection for LOST deals"""
-    
+    @pytest.mark.unit
     def test_lost_deal_has_loss_risk(self, test_repositories, sample_deal):
         """Test that LOST deals are flagged"""
         analytics_service = AnalyticsService(test_repositories)
@@ -390,7 +389,7 @@ class TestRiskIndicatorsLostDeal:
         
         assert len(risks) >= 1, f"LOST deal should have risks"
         assert any(r['type'] == 'deal_lost' for r in risks), "Should have 'deal_lost' risk"
-    
+    @pytest.mark.unit
     def test_lost_deal_insufficient_effort_risk(self, test_repositories, sample_deal):
         """Test that LOST deals with low effort get warning"""
         analytics_service = AnalyticsService(test_repositories)
@@ -407,10 +406,10 @@ class TestRiskIndicatorsLostDeal:
         
         assert any(r['type'] == 'insufficient_effort' for r in risks), "Should have 'insufficient_effort' risk"
 
-
+@pytest.mark.unit
 class TestRiskIndicatorsOpenDeal:
     """Test risk detection for OPEN deals"""
-    
+    @pytest.mark.unit
     def test_open_deal_no_activity_critical_risk(self, test_repositories, sample_deal):
         """Test that OPEN deals with no activity get critical risk"""
         analytics_service = AnalyticsService(test_repositories)
@@ -425,7 +424,7 @@ class TestRiskIndicatorsOpenDeal:
         
         assert any(r['type'] == 'no_activity' and r['severity'] == 'critical' for r in risks), \
             "OPEN deal with no activity should have critical 'no_activity' risk"
-    
+    @pytest.mark.unit
     def test_open_deal_critical_inactivity_risk(self, test_repositories, sample_deal, sample_activities_list):
         """Test that OPEN deals with 60+ days inactivity get critical risk"""
         analytics_service = AnalyticsService(test_repositories)
@@ -445,7 +444,7 @@ class TestRiskIndicatorsOpenDeal:
         critical_inactivity = [r for r in risks if r['type'] == 'critical_inactivity']
         assert len(critical_inactivity) > 0, "Should have 'critical_inactivity' risk"
         assert critical_inactivity[0]['severity'] == 'critical'
-    
+    @pytest.mark.unit
     def test_open_deal_high_inactivity_risk(self, test_repositories, sample_deal, sample_activities_list):
         """Test that OPEN deals with 30-60 days inactivity get high risk"""
         analytics_service = AnalyticsService(test_repositories)
@@ -465,7 +464,7 @@ class TestRiskIndicatorsOpenDeal:
         high_inactivity = [r for r in risks if r['type'] == 'high_inactivity']
         assert len(high_inactivity) > 0, "Should have 'high_inactivity' risk"
         assert high_inactivity[0]['severity'] == 'high'
-    
+    @pytest.mark.unit
     def test_open_deal_very_old_deal_risk(self, test_repositories, sample_deal):
         """Test that OPEN deals > 180 days old get risk"""
         analytics_service = AnalyticsService(test_repositories)
@@ -482,10 +481,10 @@ class TestRiskIndicatorsOpenDeal:
         assert any(r['type'] == 'very_old_deal' for r in risks), \
             "OPEN deal > 180 days should have 'very_old_deal' risk"
 
-
+@pytest.mark.unit
 class TestComprehensiveScenarios:
     """Test complete real-world scenarios"""
-    
+    @pytest.mark.unit
     def test_scenario_won_deal_from_output(self, test_repositories, sample_deal, sample_activities_list):
         """
         Test the exact scenario that was failing: WON deal should NOT score same as LOST

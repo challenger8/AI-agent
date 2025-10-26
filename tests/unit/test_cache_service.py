@@ -21,17 +21,17 @@ import pytest
 from datetime import timedelta
 from services.cache_service import CacheService, get_cache_service
 
-
+@pytest.mark.unit
 class TestCacheServiceBasic:
     """Test basic cache service functionality"""
-    
+    @pytest.mark.unit
     def test_cache_service_creation(self):
         """Test creating cache service instance"""
         cache = CacheService(enabled=True)
         
         assert cache is not None
         assert hasattr(cache, 'enabled')
-    
+    @pytest.mark.unit
     def test_cache_service_disabled(self):
         """Test cache service when disabled"""
         cache = CacheService(enabled=False)
@@ -40,7 +40,7 @@ class TestCacheServiceBasic:
         # Operations should not fail, just return False/None
         result = cache.set('key', 'value')
         assert result is False
-    
+    @pytest.mark.unit
     def test_is_available(self):
         """Test checking if cache is available"""
         cache = CacheService(enabled=True)
@@ -49,9 +49,10 @@ class TestCacheServiceBasic:
         is_avail = cache.is_available()
         assert isinstance(is_avail, bool)
 
-
+@pytest.mark.unit
 class TestCacheOperations:
     """Test cache set/get/delete operations"""
+    @pytest.mark.unit
     def test_delete_key(self):
         """Test deleting a key"""
         cache = CacheService(enabled=True)
@@ -70,6 +71,7 @@ class TestCacheOperations:
             assert value is None
         else:
             pytest.skip("Redis not available")
+    @pytest.mark.unit
     def test_set_and_get(self):
         """Test setting and getting a value"""
         cache = CacheService(enabled=True)
@@ -84,7 +86,7 @@ class TestCacheOperations:
             assert value == 'test_value'
         else:
             pytest.skip("Redis not available")
-    
+    @pytest.mark.unit
     def test_get_nonexistent_key(self):
         """Test getting non-existent key returns None"""
         cache = CacheService(enabled=True)
@@ -94,7 +96,7 @@ class TestCacheOperations:
             assert value is None
         else:
             pytest.skip("Redis not available")
-    
+    @pytest.mark.unit
     def test_delete_key(self):
         """Test deleting a key"""
         cache = CacheService(enabled=True)
@@ -111,7 +113,7 @@ class TestCacheOperations:
             assert value is None
         else:
             pytest.skip("Redis not available")
-    
+    @pytest.mark.unit
     def test_exists(self):
         """Test checking if key exists"""
         cache = CacheService(enabled=True)
@@ -126,7 +128,7 @@ class TestCacheOperations:
             assert cache.exists('nonexistent_key') is False
         else:
             pytest.skip("Redis not available")
-    
+    @pytest.mark.unit
     def test_set_with_ttl_int(self):
         """Test setting value with TTL (integer seconds)"""
         cache = CacheService(enabled=True)
@@ -139,7 +141,7 @@ class TestCacheOperations:
             assert cache.exists('test_ttl') is True
         else:
             pytest.skip("Redis not available")
-    
+    @pytest.mark.unit
     def test_set_with_ttl_timedelta(self):
         """Test setting value with TTL (timedelta)"""
         cache = CacheService(enabled=True)
@@ -154,10 +156,10 @@ class TestCacheOperations:
             assert ttl > 0
         else:
             pytest.skip("Redis not available")
-
+@pytest.mark.unit
 class TestCacheKeyGeneration:
     """Test cache key generation utilities"""
-    
+    @pytest.mark.unit
     def test_generate_key(self):
         """Test generating cache keys from parts"""
         # Test with multiple parts
@@ -180,7 +182,7 @@ class TestCacheKeyGeneration:
         key = CacheService.generate_key('count', 42)
         assert 'count' in key
         assert '42' in key
-    
+    @pytest.mark.unit
     def test_hash_text(self):
         """Test text hashing for consistent cache keys"""
         # Test consistency - same text produces same hash
@@ -216,9 +218,10 @@ class TestCacheKeyGeneration:
         hash_english = CacheService.hash_text(english_text)
         assert hash_english is not None
         assert len(hash_english) > 0
+@pytest.mark.unit
 class TestCacheBulkOperations:
     """Test bulk cache operations"""
-    
+    @pytest.mark.unit
     def test_delete_pattern(self):
         """Test deleting keys by pattern"""
         cache = CacheService(enabled=True)
@@ -247,7 +250,7 @@ class TestCacheBulkOperations:
             assert analytics_value['test'] == 4
         else:
             pytest.skip("Redis not available")
-    
+    @pytest.mark.unit
     def test_clear_all(self):
         """Test clearing entire cache"""
         cache = CacheService(enabled=True)
@@ -270,9 +273,10 @@ class TestCacheBulkOperations:
             assert cache.get('test_key_3') is None
         else:
             pytest.skip("Redis not available")
+@pytest.mark.unit
 class TestCacheDataTypes:
     """Test caching different data types"""
-    
+    @pytest.mark.unit
     def test_cache_string(self):
         """Test caching string values"""
         cache = CacheService(enabled=True)
@@ -285,7 +289,7 @@ class TestCacheDataTypes:
             assert isinstance(value, str)
         else:
             pytest.skip("Redis not available")
-    
+    @pytest.mark.unit
     def test_cache_dict(self):
         """Test caching dictionary values"""
         cache = CacheService(enabled=True)
@@ -299,7 +303,7 @@ class TestCacheDataTypes:
             assert isinstance(value, dict)
         else:
             pytest.skip("Redis not available")
-    
+    @pytest.mark.unit
     def test_cache_list(self):
         """Test caching list values"""
         cache = CacheService(enabled=True)
@@ -313,7 +317,7 @@ class TestCacheDataTypes:
             assert isinstance(value, list)
         else:
             pytest.skip("Redis not available")
-    
+    @pytest.mark.unit
     def test_cache_number(self):
         """Test caching numeric values"""
         cache = CacheService(enabled=True)
@@ -331,10 +335,10 @@ class TestCacheDataTypes:
         else:
             pytest.skip("Redis not available")
 
-
+@pytest.mark.unit
 class TestCachePatterns:
     """Test pattern-based cache operations"""
-    
+    @pytest.mark.unit
     def test_delete_pattern(self):
         """Test deleting keys by pattern"""
         cache = CacheService(enabled=True)
@@ -358,23 +362,23 @@ class TestCachePatterns:
         else:
             pytest.skip("Redis not available")
 
-
+@pytest.mark.unit
 class TestCacheHelpers:
     """Test cache helper methods"""
-    
+    @pytest.mark.unit
     def test_generate_key(self):
         """Test key generation from parts"""
         key = CacheService.generate_key('sentiment', 'deal', '123')
         
         assert key == 'sentiment:deal:123'
         assert isinstance(key, str)
-    
+    @pytest.mark.unit
     def test_generate_key_single_part(self):
         """Test key generation with single part"""
         key = CacheService.generate_key('simple')
         
         assert key == 'simple'
-    
+    @pytest.mark.unit
     def test_hash_text(self):
         """Test text hashing for cache keys"""
         text = "این یک متن تست است"
@@ -390,7 +394,7 @@ class TestCacheHelpers:
         # Different text should produce different hash
         hash3 = CacheService.hash_text("متن متفاوت")
         assert hash1 != hash3
-    
+    @pytest.mark.unit
     def test_increment_counter(self):
         """Test incrementing a counter"""
         cache = CacheService(enabled=True)
@@ -405,7 +409,7 @@ class TestCacheHelpers:
             assert value2 == value + 5
         else:
             pytest.skip("Redis not available")
-    
+    @pytest.mark.unit
     def test_get_ttl(self):
         """Test getting TTL for a key"""
         cache = CacheService(enabled=True)
@@ -422,10 +426,10 @@ class TestCacheHelpers:
         else:
             pytest.skip("Redis not available")
 
-
+@pytest.mark.unit
 class TestCacheStats:
     """Test cache statistics"""
-    
+    @pytest.mark.unit
     def test_get_stats(self):
         """Test getting cache statistics"""
         cache = CacheService(enabled=True)
@@ -440,10 +444,10 @@ class TestCacheStats:
             assert 'total_keys' in stats
             assert 'used_memory' in stats
 
-
+@pytest.mark.unit
 class TestCacheGracefulDegradation:
     """Test cache graceful degradation when Redis unavailable"""
-    
+    @pytest.mark.unit
     def test_operations_with_redis_down(self):
         """Test that operations don't crash when Redis is down"""
         # Create cache with fake host
@@ -461,7 +465,7 @@ class TestCacheGracefulDegradation:
         
         deleted = cache.delete('key')
         assert deleted is False
-    
+    @pytest.mark.unit
     def test_disabled_cache_returns_safely(self):
         """Test disabled cache returns safe values"""
         cache = CacheService(enabled=False)
@@ -478,10 +482,10 @@ class TestCacheGracefulDegradation:
         # Delete should return False
         assert cache.delete('key') is False
 
-
+@pytest.mark.unit
 class TestCacheServiceSingleton:
     """Test global cache service singleton"""
-    
+    @pytest.mark.unit
     def test_get_cache_service_singleton(self):
         """Test getting global cache service instance"""
         cache1 = get_cache_service()
@@ -489,7 +493,7 @@ class TestCacheServiceSingleton:
         
         # Should be same instance
         assert cache1 is cache2
-    
+    @pytest.mark.unit
     def test_cache_service_is_cache_service(self):
         """Test that singleton returns CacheService instance"""
         cache = get_cache_service()
@@ -498,10 +502,10 @@ class TestCacheServiceSingleton:
         assert hasattr(cache, 'set')
         assert hasattr(cache, 'get')
 
-
+@pytest.mark.unit
 class TestCacheRealWorldUsage:
     """Test real-world cache usage patterns"""
-    
+    @pytest.mark.unit
     def test_sentiment_caching_pattern(self):
         """Test typical sentiment result caching"""
         cache = CacheService(enabled=True)
@@ -527,7 +531,7 @@ class TestCacheRealWorldUsage:
             assert cached == sentiment_result
         else:
             pytest.skip("Redis not available")
-    
+    @pytest.mark.unit
     def test_analytics_caching_pattern(self):
         """Test typical analytics result caching"""
         cache = CacheService(enabled=True)

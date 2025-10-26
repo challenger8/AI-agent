@@ -8,7 +8,7 @@ import pytest
 import asyncio
 pytest_plugins = ('pytest_asyncio',)
 
-
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestCompleteWorkflow:
     """Test complete workflows from start to finish"""
@@ -95,7 +95,7 @@ class TestCompleteWorkflow:
         assert 'summary' in result
         assert result['summary']['total_deals'] >= 5
 
-
+@pytest.mark.integration
 @pytest.mark.asyncio  
 class TestDataFlowIntegration:
     """Test data flowing through system"""
@@ -158,7 +158,7 @@ class TestDataFlowIntegration:
         # More recent activities should give better score
         assert score_many >= score_few
 
-
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestErrorHandlingIntegration:
     """Test error handling across components"""
@@ -212,7 +212,7 @@ class TestErrorHandlingIntegration:
             # Should return error, not crash
             assert result is not None
 
-
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestCachingIntegration:
     """Test caching across services"""
@@ -306,7 +306,7 @@ class TestCachingIntegration:
         # Scores might be different due to more activities
         assert score2 is not None
 
-
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestMultiServiceCoordination:
     """Test multiple services working together"""
@@ -364,7 +364,7 @@ class TestMultiServiceCoordination:
             activities = uow.activities.get_activities_by_deal(sample_deal.Id)
             assert len(activities) >= 3
 
-
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestScenarios:
     """Test real-world scenarios"""
@@ -446,7 +446,7 @@ class TestScenarios:
         risk_types = [r['type'] for r in result['risk_indicators']]
         assert 'no_activity' in risk_types
 
-
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestPerformanceIntegration:
     """Test performance-related aspects"""
@@ -504,7 +504,7 @@ class TestPerformanceIntegration:
         assert result is not None
         assert result['summary']['total_deals'] >= 20
 
-
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestDataConsistency:
     """Test data consistency across operations"""

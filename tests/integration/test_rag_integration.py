@@ -17,7 +17,7 @@ from services.rag_search_service import RAGSearchService  # ← Direct import
 from models.deal_model import Deal, DealActivity, CRMAgent
 from utils.exceptions import ServiceError
 
-
+@pytest.mark.integration
 class TestRAGEndToEnd:
     """End-to-end RAG workflow tests"""
     

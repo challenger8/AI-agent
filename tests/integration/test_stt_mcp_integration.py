@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from mcp_spec.server import create_mcp_server
 from config.settings import STTSettings
 
-
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestSTTMCPIntegration:
     """Test STT tools through MCP server"""
@@ -305,6 +305,7 @@ class TestSTTMCPIntegration:
 
 
 # For direct execution
+@pytest.mark.integration
 async def run_all_stt_mcp_tests():
     """Run all STT MCP integration tests"""
     print("\n" + "🚀 " + "="*58)

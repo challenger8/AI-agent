@@ -14,7 +14,7 @@ from services.sentiment_service import SentimentService
 from services.analytics_service import AnalyticsService
 from services.cache_service import get_cache_service
 
-
+@pytest.mark.integration
 @pytest.fixture(scope="module")
 def test_setup():
     """Setup test environment"""
@@ -41,7 +41,7 @@ def test_setup():
         cache.delete_pattern("portfolio:*")
     db.close()
 
-
+@pytest.mark.integration
 class TestSentimentServiceCaching:
     """Test caching in SentimentService"""
     

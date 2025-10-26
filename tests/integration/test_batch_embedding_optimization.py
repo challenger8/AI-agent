@@ -16,7 +16,7 @@ from services.batch_embedding_service import (
     OptimizedEmbeddingService
 )
 
-
+@pytest.mark.integration
 class TestBatchEmbeddingMetrics:
     """Test batch embedding metrics tracking"""
     
@@ -63,7 +63,7 @@ class TestBatchEmbeddingMetrics:
         assert metrics.total_time == 0
         assert metrics.batch_count == 0
 
-
+@pytest.mark.integration
 class TestBatchEmbeddingService:
     """Test batch embedding service"""
     
@@ -135,7 +135,7 @@ class TestBatchEmbeddingService:
         
         assert result is None
 
-
+@pytest.mark.integration
 class TestOptimizedEmbeddingService:
     """Test optimized embedding service wrapper"""
     
@@ -225,7 +225,7 @@ class TestOptimizedEmbeddingService:
         assert 'jane@test.com' in text
         assert 'Manager' in text
 
-
+@pytest.mark.integration
 class TestBatchEmbeddingPerformance:
     """Test performance improvements from batch processing"""
     
@@ -279,7 +279,7 @@ class TestBatchEmbeddingPerformance:
         assert len(results1) == 50
         assert len(results2) == 50
 
-
+@pytest.mark.integration
 class TestBatchEmbeddingErrorHandling:
     """Test error handling in batch embedding"""
     

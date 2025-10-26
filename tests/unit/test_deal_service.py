@@ -7,10 +7,10 @@ Unit tests for DealService
 import pytest
 from datetime import datetime, timedelta
 
-
+@pytest.mark.unit
 class TestDealService:
     """Test DealService functionality"""
-    
+    @pytest.mark.unit
     def test_get_deal_exists(self, deal_service, test_repositories, sample_deal):
         """Test getting an existing deal"""
         # Create deal first
@@ -22,13 +22,13 @@ class TestDealService:
         assert result is not None
         assert result['Id'] == sample_deal.Id
         assert result['Title'] == sample_deal.Title
-    
+    @pytest.mark.unit
     def test_get_deal_not_found(self, deal_service):
         """Test getting non-existent deal returns None"""
         result = deal_service.get_deal('nonexistent-deal-xyz')
         
         assert result is None
-    
+    @pytest.mark.unit
     def test_get_all_deals(self, deal_service, test_repositories, sample_deals_list):
         """Test getting all deals"""
         # Create some deals
@@ -40,7 +40,7 @@ class TestDealService:
         
         assert isinstance(deals, list)
         assert len(deals) >= 3
-    
+    @pytest.mark.unit
     def test_get_deals_by_status(self, deal_service, test_repositories, sample_deals_list):
         """Test filtering deals by status"""
         # Create deals with different statuses
@@ -54,7 +54,7 @@ class TestDealService:
         # All returned deals should have requested status
         for deal in active_deals:
             assert deal['Status'] == 'در حال پیگیری'
-    
+    @pytest.mark.unit
     def test_get_deals_summary(self, deal_service, test_repositories, sample_deals_list):
         """Test getting deals summary statistics"""
         # Create sample deals
@@ -69,7 +69,7 @@ class TestDealService:
         assert 'closed_deals' in summary
         assert 'total_value' in summary
         assert isinstance(summary['total_deals'], int)
-    
+    @pytest.mark.unit
     def test_get_deals_summary_empty(self, deal_service):
         """Test summary with no deals"""
         # Clear any existing deals or use isolated test
@@ -77,7 +77,7 @@ class TestDealService:
         
         # Should return error or zero counts, not crash
         assert summary is not None
-    
+    @pytest.mark.unit
     def test_get_deal_timeline(self, deal_service, test_repositories, sample_deal, sample_activities_list):
         """Test getting deal timeline"""
         # Create deal and activities
@@ -93,13 +93,13 @@ class TestDealService:
         assert 'total_events' in timeline
         assert isinstance(timeline['timeline'], list)
         assert len(timeline['timeline']) > 0
-    
+    @pytest.mark.unit
     def test_get_deal_timeline_not_found(self, deal_service):
         """Test timeline for non-existent deal"""
         timeline = deal_service.get_deal_timeline('nonexistent-deal')
         
         assert 'error' in timeline
-    
+    @pytest.mark.unit
     def test_calculate_deal_duration(self, deal_service, sample_deal):
         """Test deal duration calculation"""
         # Set up deal with known dates
@@ -111,7 +111,7 @@ class TestDealService:
         assert duration is not None
         assert isinstance(duration, int)
         assert duration >= 30  # Should be at least 30 days
-    
+    @pytest.mark.unit
     def test_calculate_deal_duration_no_dates(self, deal_service, sample_deal):
         """Test duration calculation with missing dates"""
         sample_deal.RegisterTime = None
