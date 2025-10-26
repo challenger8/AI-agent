@@ -207,66 +207,167 @@ def sample_agents_list():
 
 
 # ============================================================================
-# MOCK REPOSITORY - Uses real model instances
+# MOCK REPOSITORY - STATEFUL IN-MEMORY STORAGE
 # ============================================================================
 
 @pytest.fixture(scope="function")
 def test_repositories(sample_deal, sample_activity, sample_agent, 
                       sample_deals_list, sample_activities_list, 
                       sample_agents_list, sample_sentiment):
-    """Mock repository manager with real model instances"""
+    """
+    Mock repository manager with STATEFUL in-memory storage
     
+    Tracks all created objects and returns proper None/empty values for nonexistent items
+    """
     repos = Mock()
+    
+    # In-memory storage for this test
+    storage = {
+        'deals': {},
+        'activities': {},
+        'agents': {},
+        'sentiments': {}
+    }
+    
+    # Counter for IDs
+    id_counter = {'deals': 0, 'activities': 0, 'agents': 0, 'sentiments': 0}
     
     # ===== DEAL REPOSITORY =====
     repos.deals = Mock()
-    repos.deals.create_deal = Mock(return_value=1)
-    repos.deals.get_deal_by_id = Mock(return_value=sample_deal)
-    repos.deals.get_all_deals = Mock(return_value=sample_deals_list)
-    repos.deals.update_deal = Mock(return_value=True)
-    repos.deals.delete_deal = Mock(return_value=True)
-    repos.deals.get_deals_by_status = Mock(return_value=[sample_deal])
-    repos.deals.get_deals_statistics = Mock(return_value={
-        'total_deals': 3,
-        'by_status': {'در حال پیگیری': 1},
-        'total_value': Decimal('350000.00')
+    
+    repos.deals.create_deal = Mock(side_effect=lambda deal: (
+        storage['deals'].update({deal.Id: deal}),
+        id_counter.update({'deals': id_counter['deals'] + 1}),
+        deal.Id
+    )[2])
+    
+    repos.deals.get_deal_by_id = Mock(side_effect=lambda deal_id: storage['deals'].get(deal_id))
+    
+    repos.deals.get_all_deals = Mock(side_effect=lambda: list(storage['deals'].values()))
+    
+    repos.deals.update_deal = Mock(side_effect=lambda deal: (
+        storage['deals'].update({deal.Id: deal}),
+        True
+    )[1])
+    
+    repos.deals.delete_deal = Mock(side_effect=lambda deal_id: (
+        storage['deals'].pop(deal_id, None),
+        True
+    )[1])
+    
+    repos.deals.get_deals_by_status = Mock(side_effect=lambda status: [
+        d for d in storage['deals'].values() if d.Status == status
+    ])
+    
+    repos.deals.get_deals_statistics = Mock(side_effect=lambda: {
+        'total_deals': len(storage['deals']),
+        'by_status': {},
+        'total_value': Decimal('0.00')
     })
     
     # ===== ACTIVITY REPOSITORY =====
     repos.activities = Mock()
-    repos.activities.create_activity = Mock(return_value=1)
-    repos.activities.get_activity_by_id = Mock(return_value=sample_activity)
-    repos.activities.get_all_activities = Mock(return_value=sample_activities_list)
-    repos.activities.get_activities_by_deal = Mock(return_value=sample_activities_list)
-    repos.activities.update_activity = Mock(return_value=True)
-    repos.activities.delete_activity = Mock(return_value=True)
-    repos.activities.update_activity_sentiment = Mock(return_value=sample_activity)
-    repos.activities.get_pending_activities = Mock(return_value=[sample_activities_list[0]])
-    repos.activities.get_activities_by_date_range = Mock(return_value=sample_activities_list)
+    
+    repos.activities.create_activity = Mock(side_effect=lambda activity: (
+        storage['activities'].update({activity.id: activity}),
+        id_counter.update({'activities': id_counter['activities'] + 1}),
+        activity.id
+    )[2])
+    
+    repos.activities.get_activity_by_id = Mock(side_effect=lambda activity_id: (
+        storage['activities'].get(activity_id)
+    ))
+    
+    repos.activities.get_all_activities = Mock(side_effect=lambda: list(storage['activities'].values()))
+    
+    repos.activities.get_activities_by_deal = Mock(side_effect=lambda deal_id: [
+        a for a in storage['activities'].values() if a.dealid == deal_id
+    ])
+    
+    repos.activities.update_activity = Mock(side_effect=lambda activity: (
+        storage['activities'].update({activity.id: activity}),
+        True
+    )[1])
+    
+    repos.activities.delete_activity = Mock(side_effect=lambda activity_id: (
+        storage['activities'].pop(activity_id, None),
+        True
+    )[1])
+    
+    def update_sentiment(activity_id, sentiment_score, sentiment_label):
+        """Update activity sentiment - return True if activity exists"""
+        if activity_id in storage['activities']:
+            storage['activities'][activity_id].sentiment_score = sentiment_score
+            storage['activities'][activity_id].sentiment_label = sentiment_label
+            return True
+        return False
+    
+    repos.activities.update_activity_sentiment = Mock(side_effect=update_sentiment)
+    
+    repos.activities.get_pending_activities = Mock(side_effect=lambda: [
+        a for a in storage['activities'].values() if not a.isdone
+    ])
+    
+    repos.activities.get_activities_by_date_range = Mock(side_effect=lambda start, end: list(storage['activities'].values()))
     
     # ===== AGENT REPOSITORY =====
     repos.agents = Mock()
-    repos.agents.create_agent = Mock(return_value=1)
-    repos.agents.get_agent_by_id = Mock(return_value=sample_agent)
-    repos.agents.get_all_agents = Mock(return_value=sample_agents_list)
-    repos.agents.update_agent = Mock(return_value=True)
-    repos.agents.delete_agent = Mock(return_value=True)
-    repos.agents.get_agents_by_role = Mock(return_value=[sample_agent])
-    repos.agents.get_agent_statistics = Mock(return_value={
-        'total_agents': 3,
-        'by_role': {'فروشنده': 1}
+    
+    repos.agents.create_agent = Mock(side_effect=lambda agent: (
+        storage['agents'].update({agent.id: agent}),
+        id_counter.update({'agents': id_counter['agents'] + 1}),
+        agent.id
+    )[2])
+    
+    repos.agents.get_agent_by_id = Mock(side_effect=lambda agent_id: storage['agents'].get(agent_id))
+    
+    repos.agents.get_all_agents = Mock(side_effect=lambda: list(storage['agents'].values()))
+    
+    repos.agents.update_agent = Mock(side_effect=lambda agent: (
+        storage['agents'].update({agent.id: agent}),
+        True
+    )[1])
+    
+    repos.agents.delete_agent = Mock(side_effect=lambda agent_id: (
+        storage['agents'].pop(agent_id, None),
+        True
+    )[1])
+    
+    repos.agents.get_agents_by_role = Mock(side_effect=lambda role: [
+        a for a in storage['agents'].values() if a.role == role
+    ])
+    
+    repos.agents.get_agent_statistics = Mock(side_effect=lambda: {
+        'total_agents': len(storage['agents']),
+        'by_role': {}
     })
     
     # ===== SENTIMENT REPOSITORY =====
     repos.sentiment = Mock()
-    repos.sentiment.save_sentiment = Mock(return_value=1)
-    repos.sentiment.get_sentiment_by_activity = Mock(return_value=sample_sentiment)
-    repos.sentiment.get_sentiments_by_deal = Mock(return_value=[sample_sentiment])
-    repos.sentiment.update_sentiment = Mock(return_value=True)
-    repos.sentiment.get_sentiment_statistics = Mock(return_value={
-        'positive': 10,
-        'negative': 2,
-        'neutral': 3
+    
+    repos.sentiment.save_sentiment = Mock(side_effect=lambda sentiment: (
+        id_counter.update({'sentiments': id_counter['sentiments'] + 1}),
+        storage['sentiments'].update({id_counter['sentiments']: sentiment}),
+        id_counter['sentiments']
+    )[2])
+    
+    repos.sentiment.get_sentiment_by_activity = Mock(side_effect=lambda activity_id: next(
+        (s for s in storage['sentiments'].values() if getattr(s, 'activity_id', None) == activity_id),
+        None
+    ))
+    
+    repos.sentiment.get_sentiments_by_deal = Mock(side_effect=lambda deal_id: [
+        s for s in storage['sentiments'].values() if getattr(s, 'deal_id', None) == deal_id
+    ])
+    
+    repos.sentiment.update_sentiment = Mock(side_effect=lambda sentiment: (
+        True
+    ))
+    
+    repos.sentiment.get_sentiment_statistics = Mock(side_effect=lambda: {
+        'positive': 0,
+        'negative': 0,
+        'neutral': 0
     })
     
     # ===== CONTEXT MANAGER =====
@@ -274,11 +375,18 @@ def test_repositories(sample_deal, sample_activity, sample_agent,
     repos.__exit__ = Mock(return_value=False)
     
     # ===== Helper methods =====
-    repos.get_deal_with_details = Mock(return_value={
-        'deal': sample_deal,
-        'activities': sample_activities_list,
-        'sentiment_summary': {'positive': 2, 'neutral': 1}
-    })
+    def get_deal_with_details(deal_id):
+        deal = storage['deals'].get(deal_id)
+        if not deal:
+            return None
+        activities = [a for a in storage['activities'].values() if a.dealid == deal_id]
+        return {
+            'deal': deal,
+            'activities': activities,
+            'sentiment_summary': {'positive': len([a for a in activities if a.sentiment_label == 'positive']), 'neutral': 0}
+        }
+    
+    repos.get_deal_with_details = Mock(side_effect=get_deal_with_details)
     
     return repos
 

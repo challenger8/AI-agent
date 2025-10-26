@@ -198,7 +198,68 @@ def test_config():
 # ============================================================================
 # EXPORTS FOR SUBMODULES
 # ============================================================================
+# ============================================================================
+# MOCK REPOSITORIES (Unit Tests)
+# ============================================================================
 
+@pytest.fixture
+def mock_repositories():
+    """
+    Mock repository manager with stateful in-memory storage
+    
+    Tracks all created deals, activities, agents, and sentiments
+    Returns proper values for nonexistent IDs instead of dummy data
+    """
+    repos = Mock()
+    
+    # In-memory storage for this test
+    storage = {
+        'deals': {},
+        'activities': {},
+        'agents': {},
+        'sentiments': {}
+    }
+    
+    # ===== DEALS =====
+    repos.deals.create_deal = Mock(side_effect=lambda deal: (storage['deals'].update({deal.Id: deal}), deal.Id)[1])
+    repos.deals.get_deal_by_id = Mock(side_effect=lambda deal_id: storage['deals'].get(deal_id))
+    repos.deals.get_all_deals = Mock(side_effect=lambda: list(storage['deals'].values()))
+    repos.deals.get_deals_by_status = Mock(side_effect=lambda status: [d for d in storage['deals'].values() if d.Status == status])
+    repos.deals.update_deal = Mock(side_effect=lambda deal: (storage['deals'].update({deal.Id: deal}), True)[1])
+    repos.deals.get_deals_statistics = Mock(return_value={'total_deals': len(storage['deals']), 'by_status': {}})
+    
+    # ===== ACTIVITIES =====
+    repos.activities.create_activity = Mock(side_effect=lambda activity: (storage['activities'].update({activity.id: activity}), activity.id)[1])
+    repos.activities.get_activity_by_id = Mock(side_effect=lambda activity_id: storage['activities'].get(activity_id))
+    repos.activities.get_activities_by_deal = Mock(side_effect=lambda deal_id: [a for a in storage['activities'].values() if a.dealid == deal_id])
+    repos.activities.get_pending_activities = Mock(side_effect=lambda: [a for a in storage['activities'].values() if not a.isdone])
+    
+    def update_sentiment(activity_id, sentiment_score, sentiment_label):
+        """Update activity sentiment, return True if success"""
+        if activity_id in storage['activities']:
+            storage['activities'][activity_id].sentiment_score = sentiment_score
+            storage['activities'][activity_id].sentiment_label = sentiment_label
+            return True
+        return False
+    
+    repos.activities.update_activity_sentiment = Mock(side_effect=update_sentiment)
+    
+    # ===== AGENTS =====
+    repos.agents.create_agent = Mock(side_effect=lambda agent: (storage['agents'].update({agent.id: agent}), agent.id)[1])
+    repos.agents.get_agent_by_id = Mock(side_effect=lambda agent_id: storage['agents'].get(agent_id))
+    repos.agents.get_all_agents = Mock(side_effect=lambda: list(storage['agents'].values()))
+    repos.agents.get_agents_by_role = Mock(side_effect=lambda role: [a for a in storage['agents'].values() if a.role == role])
+    
+    # ===== SENTIMENT =====
+    repos.sentiment.save_sentiment = Mock(side_effect=lambda sentiment: (storage['sentiments'].update({len(storage['sentiments']) + 1: sentiment}), len(storage['sentiments']))[1])
+    repos.sentiment.get_sentiment_by_activity = Mock(side_effect=lambda activity_id: next((s for s in storage['sentiments'].values() if getattr(s, 'activity_id', None) == activity_id), None))
+    repos.sentiment.get_sentiments_by_deal = Mock(side_effect=lambda deal_id: [s for s in storage['sentiments'].values() if getattr(s, 'deal_id', None) == deal_id])
+    
+    # Context manager support
+    repos.__enter__ = Mock(return_value=repos)
+    repos.__exit__ = Mock(return_value=False)
+    
+    return repos
 # These are available to unit/conftest.py and integration/conftest.py
 __all__ = [
     'get_service_status',
