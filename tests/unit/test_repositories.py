@@ -11,7 +11,6 @@ from decimal import Decimal
 @pytest.mark.unit
 class TestDealRepository:
     """Test DealRepository"""
-    @pytest.mark.unit
     def test_get_all_deals(self, test_repositories):
         """Test getting all deals"""
         deals = test_repositories.deals.get_all_deals()
@@ -19,7 +18,6 @@ class TestDealRepository:
         assert isinstance(deals, list)
         # May be empty if no data, but should return a list
         assert deals is not None
-    @pytest.mark.unit
     def test_create_and_get_deal(self, test_repositories, sample_deal):
         """Test creating a deal and retrieving it"""
         # Create deal
@@ -33,13 +31,11 @@ class TestDealRepository:
         assert retrieved_deal is not None
         assert retrieved_deal.Id == sample_deal.Id
         assert retrieved_deal.Title == sample_deal.Title
-    @pytest.mark.unit
     def test_get_deal_by_id_nonexistent(self, test_repositories):
         """Test getting non-existent deal returns None"""
         result = test_repositories.deals.get_deal_by_id('nonexistent-deal-xyz')
         
         assert result is None
-    @pytest.mark.unit
     def test_update_deal(self, test_repositories, sample_deal):
         """Test updating a deal"""
         # Create deal
@@ -57,7 +53,6 @@ class TestDealRepository:
         updated_deal = test_repositories.deals.get_deal_by_id(sample_deal.Id)
         assert updated_deal.Title == "Updated Title"
         assert updated_deal.Status == "بسته شده"
-    @pytest.mark.unit
     def test_get_deals_by_status(self, test_repositories, sample_deals_list):
         """Test filtering deals by status"""
         # Create multiple deals with different statuses
@@ -71,7 +66,6 @@ class TestDealRepository:
         # All returned deals should have the requested status
         for deal in active_deals:
             assert deal.Status == 'در حال پیگیری'
-    @pytest.mark.unit
     def test_get_deals_statistics(self, test_repositories, sample_deals_list):
         """Test getting deal statistics"""
         # Create sample deals
@@ -87,7 +81,6 @@ class TestDealRepository:
 @pytest.mark.unit
 class TestDealActivityRepository:
     """Test DealActivityRepository"""
-    @pytest.mark.unit
     def test_create_and_get_activity(self, test_repositories, sample_activity, sample_deal):
         """Test creating and retrieving an activity"""
         # Create deal first (foreign key constraint)
@@ -104,7 +97,6 @@ class TestDealActivityRepository:
         assert retrieved is not None
         assert retrieved.id == sample_activity.id
         assert retrieved.title == sample_activity.title
-    @pytest.mark.unit
     def test_get_activities_by_deal(self, test_repositories, sample_deal, sample_activities_list):
         """Test getting activities for a specific deal"""
         # Create deal
@@ -122,14 +114,12 @@ class TestDealActivityRepository:
         # All activities should belong to the deal
         for activity in activities:
             assert activity.dealid == sample_deal.Id
-    @pytest.mark.unit
     def test_get_activities_by_deal_empty(self, test_repositories):
         """Test getting activities for deal with no activities"""
         activities = test_repositories.activities.get_activities_by_deal('nonexistent-deal')
         
         assert isinstance(activities, list)
         assert len(activities) == 0
-    @pytest.mark.unit
     def test_update_activity_sentiment(self, test_repositories, sample_activity, sample_deal):
         """Test updating activity sentiment"""
         # Create deal and activity
@@ -149,7 +139,6 @@ class TestDealActivityRepository:
         updated = test_repositories.activities.get_activity_by_id(sample_activity.id)
         assert updated.sentiment_score == 0.85
         assert updated.sentiment_label == 'مثبت'
-    @pytest.mark.unit
     def test_get_pending_activities(self, test_repositories, sample_deal, sample_activities_list):
         """Test getting pending (not done) activities"""
         # Create deal
@@ -171,7 +160,6 @@ class TestDealActivityRepository:
 @pytest.mark.unit
 class TestCRMAgentRepository:
     """Test CRMAgentRepository"""
-    @pytest.mark.unit
     def test_create_and_get_agent(self, test_repositories, sample_agent):
         """Test creating and retrieving an agent"""
         # Create agent
@@ -185,7 +173,6 @@ class TestCRMAgentRepository:
         assert retrieved is not None
         assert retrieved.id == sample_agent.id
         assert retrieved.ownername == sample_agent.ownername
-    @pytest.mark.unit
     def test_get_all_agents(self, test_repositories, sample_agents_list):
         """Test getting all agents"""
         # Create agents
@@ -197,7 +184,6 @@ class TestCRMAgentRepository:
         
         assert isinstance(agents, list)
         assert len(agents) >= 3
-    @pytest.mark.unit
     def test_get_agents_by_role(self, test_repositories, sample_agents_list):
         """Test filtering agents by role"""
         # Create agents with different roles
@@ -211,7 +197,6 @@ class TestCRMAgentRepository:
         # All returned agents should have the requested role
         for agent in agents:
             assert agent.role == 'فروشنده'
-    @pytest.mark.unit
     def test_get_agent_by_id_nonexistent(self, test_repositories):
         """Test getting non-existent agent returns None"""
         result = test_repositories.agents.get_agent_by_id('nonexistent-agent-xyz')
@@ -221,7 +206,6 @@ class TestCRMAgentRepository:
 @pytest.mark.unit
 class TestSentimentRepository:
     """Test SentimentRepository"""
-    @pytest.mark.unit
     def test_save_sentiment(self, test_repositories, sample_sentiment, sample_deal, sample_activity):
         """Test saving sentiment analysis"""
         # Create deal and activity first
@@ -233,7 +217,6 @@ class TestSentimentRepository:
         
         assert sentiment_id is not None
         assert sentiment_id > 0
-    @pytest.mark.unit
     def test_get_sentiment_by_activity(self, test_repositories, sample_sentiment, sample_deal, sample_activity):
         """Test retrieving sentiment by activity"""
         # Create dependencies and sentiment
@@ -247,7 +230,6 @@ class TestSentimentRepository:
         # Note: May be None if multiple sentiments exist
         # This tests that the method runs without error
         assert retrieved is None or hasattr(retrieved, 'label')
-    @pytest.mark.unit
     def test_get_sentiments_by_deal(self, test_repositories, sample_sentiment, sample_deal, sample_activity):
         """Test getting all sentiments for a deal"""
         # Create dependencies and sentiment
@@ -263,7 +245,6 @@ class TestSentimentRepository:
 @pytest.mark.unit
 class TestRepositoryManager:
     """Test RepositoryManager context manager"""
-    @pytest.mark.unit
     def test_repository_manager_context(self, test_repositories):
         """Test using RepositoryManager as context manager"""
         with test_repositories as uow:
@@ -272,7 +253,6 @@ class TestRepositoryManager:
             assert uow.activities is not None
             assert uow.agents is not None
             assert uow.sentiment is not None
-    @pytest.mark.unit
     def test_get_deal_with_details(self, test_repositories, sample_deal, sample_activities_list):
         """Test getting deal with all related details"""
         # Create deal and activities
