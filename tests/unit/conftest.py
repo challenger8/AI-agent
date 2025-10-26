@@ -428,7 +428,37 @@ def mock_sentiment_service():
         {"sentiment": "negative", "confidence": 0.75},
         {"sentiment": "neutral", "confidence": 0.65}
     ])
+    mock_service.analyze_activities_sentiment = Mock(return_value={
+        "total_activities": 3,
+        "analyzed_activities": 3,
+        "sentiment_distribution": {}
+    })
+    mock_service.get_sentiment_trends = Mock(return_value={"trends": []})
     return mock_service
+
+
+@pytest.fixture(scope="function")
+def sentiment_service(test_repositories):
+    """Create SentimentService instance with mocks disabled"""
+    from services.sentiment_service import SentimentService
+    service = SentimentService(test_repositories)
+    service.model_loaded = False
+    service.available = False
+    return service
+
+
+@pytest.fixture(scope="function")
+def deal_service(test_repositories):
+    """Create DealService instance"""
+    from services.deal_service import DealService
+    return DealService(test_repositories)
+
+
+@pytest.fixture(scope="function")
+def analytics_service(test_repositories, sentiment_service):
+    """Create AnalyticsService instance"""
+    from services.analytics_service import AnalyticsService
+    return AnalyticsService(test_repositories, sentiment_service)
 
 
 @pytest.fixture(scope="function")
