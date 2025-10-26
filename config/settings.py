@@ -27,24 +27,30 @@ class MCPSettings:
 
 # Sentiment Analysis settings
 class SentimentSettings:
-
-    # USE_DEEPSEEK_API = os.getenv('USE_DEEPSEEK_API', 'false').lower() == 'true'
-    API_KEY = os.getenv('GEMINI_API_KEY')  # Load from env
+    # Model configuration
+    API_KEY = os.getenv('GEMINI_API_KEY')
     HF_TOKEN = os.getenv('HF_TOKEN')
-    MODEL_NAME = "Qwen/Qwen2-0.5B-Instruct"# if USE_DEEPSEEK_API else "HooshvareLab/bert-fa-base-uncased-sentiment-digikala"
+    MODEL_NAME = "Qwen/Qwen2-0.5B-Instruct"
     
-    # For DeepSeek-V3 specifics
-    DEEPSEEK_PROMPT_TEMPLATE = """
-    Analyze the sentiment of this Persian text as one of: مثبت (positive), خنثی (neutral), or منفی (negative).
-    Text: {text}
-    Sentiment: 
-    """
+    # Use prompt-based sentiment analysis instead of classification pipeline
+    USE_PROMPT_BASED = True
     
-    MAX_TEXT_LENGTH = 512# if not USE_DEEPSEEK_API else 8192  # DeepSeek supports longer contexts
+    # Prompt template
+    DEEPSEEK_PROMPT_TEMPLATE = """Analyze the sentiment of this Persian text as one of: مثبت (positive), خنثی (neutral), or منفی (negative).
+Text: {text}
+Sentiment:"""
+    
+    # Text generation settings
+    MAX_NEW_TOKENS = 10  # Short response expected
+    TEMPERATURE = 0.1   # Low randomness for consistent results
+    TOP_P = 0.9
+    
+    # Text length settings
+    MAX_TEXT_LENGTH = 512
     CACHE_SIZE = 1000
     MIN_TEXT_LENGTH = 5
     
-    # Label mappings
+    # Label mappings - map text output to normalized sentiment
     LABEL_MAPPING = {
         'LABEL_0': 'منفی',
         'LABEL_1': 'خنثی', 
@@ -55,6 +61,8 @@ class SentimentSettings:
         'POSITIVE': 'مثبت',
         'positive': 'مثبت'
     }
+    # Label mappings
+    
 
 # Analysis settings
 class AnalysisSettings:
@@ -66,15 +74,50 @@ class AnalysisSettings:
     HEALTH_HIGH_THRESHOLD = 70
     HEALTH_MEDIUM_THRESHOLD = 40
     
+    # Deal Status Definitions
+    DEAL_STATUS_WON = ['Won', 'بسته شده', 'closed_won', 'completed']
+    DEAL_STATUS_LOST = ['Lost', 'لغو شده', 'cancelled', 'failed']
+    DEAL_STATUS_OPEN = ['در حال پیگیری', 'در حال', 'in_progress', 'open', 'active','Pending']
+    
+    # Inactivity thresholds (UNIFIED - used consistently across scoring and risk detection)
+    INACTIVITY_RECENT_DAYS = 7      # Recent activity (bonus applies)
+    INACTIVITY_WARNING_DAYS = 14    # Starting to worry (reduced bonus)
+    INACTIVITY_CONCERN_DAYS = 30    # Should take action (penalty applies)
+    INACTIVITY_CRITICAL_DAYS = 60   # Critical inactivity (high penalty)
+    
     # Activity scoring
     RECENT_ACTIVITY_BONUS = 15
     ACTIVITY_VARIETY_BONUS = 8
     TOTAL_ACTIVITY_BONUS = 2
     
-    # Risk thresholds
-    STALE_ACTIVITY_DAYS = 14
+    # Open Deal Scoring - Thresholds
+    OPEN_DEAL_BASE_SCORE = 50
+    OPEN_DEAL_NO_ACTIVITIES_PENALTY = 30
+    OPEN_DEAL_WARNING_INACTIVITY_PENALTY = 15    # 14-30 days
+    OPEN_DEAL_CONCERN_INACTIVITY_PENALTY = 30    # 30-60 days
+    OPEN_DEAL_CRITICAL_INACTIVITY_PENALTY = 40   # 60+ days
+    
+    # Closed Deal Scoring
+    WON_DEAL_BASE_SCORE = 85        # Won deals start high
+    LOST_DEAL_BASE_SCORE = 20       # Lost deals stay low
+    
+    # Activity scoring
+    ACTIVITY_FREQUENCY_LOW = 3      # Less than 3 = low
+    ACTIVITY_FREQUENCY_MEDIUM = 5   # 3-5 = medium
+    ACTIVITY_FREQUENCY_HIGH = 10    # 5-10 = high
+    
+    ACTIVITY_VARIETY_THRESHOLD = 3  # At least 3 different types
+    
+    # Sentiment scoring (for open deals)
+    POSITIVE_SENTIMENT_BONUS = 15
+    NEGATIVE_SENTIMENT_PENALTY = 20  # Changed from -25 (was asymmetric)
+    SENTIMENT_CONFIDENCE_THRESHOLD = 0.60  # Only apply if confident
+    
+    # Risk thresholds (renamed for clarity - only for OPEN deals)
+    OPEN_DEAL_STALE_ACTIVITY_DAYS = 14
     AGING_DEAL_DAYS = 60
-    COLD_DEAL_DAYS = 30
+    OPEN_DEAL_CRITICAL_ACTIVITY_DAYS = 30
+
 
 # Path settings
 class PathSettings:

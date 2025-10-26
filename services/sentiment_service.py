@@ -1,7 +1,7 @@
 """
 services/sentiment_service.py
 -----------------------------
-Sentiment analysis service for Persian text
+Sentiment analysis service for Persian text using Qwen2 with prompts
 """
 
 import asyncio
@@ -14,18 +14,20 @@ from config.settings import SentimentSettings, FeatureFlags, get_sentiment_avail
 from utils.exceptions import SentimentAnalysisError
 
 class SentimentService(BaseService):
-    """Persian sentiment analysis service with caching"""
+    """Persian sentiment analysis service using prompt-based generation"""
     
     def __init__(self, repositories=None):
         super().__init__(repositories)
-        self.pipeline = None
+        self.model = None
+        self.tokenizer = None
         self.model_loaded = False
         self.sentiment_cache = {}
         self.available = get_sentiment_available()
         self.cache_service = get_cache_service()
+    
     async def initialize(self) -> bool:
         """
-        Initialize sentiment analysis model
+        Initialize Qwen2 model for prompt-based sentiment analysis
         
         Returns:
             True if initialization successful, False otherwise
@@ -38,31 +40,43 @@ class SentimentService(BaseService):
             return True
         
         try:
-            self.logger.info("Loading Persian sentiment model...")
+            self.logger.info("Loading Qwen2 sentiment model...")
             
-            from transformers import pipeline
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+            import torch
             
-            self.pipeline = pipeline(
-                "sentiment-analysis",
-                model=SentimentSettings.MODEL_NAME,
-                tokenizer=SentimentSettings.MODEL_NAME,
-                return_all_scores=True
+            # Load tokenizer
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                SentimentSettings.MODEL_NAME,
+                token=SentimentSettings.HF_TOKEN,
+                trust_remote_code=True
             )
             
+            # Load model
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            self.model = AutoModelForCausalLM.from_pretrained(
+                SentimentSettings.MODEL_NAME,
+                token=SentimentSettings.HF_TOKEN,
+                trust_remote_code=True,
+                device_map=device,
+                torch_dtype=torch.float16 if device == "cuda" else torch.float32
+            )
+            
+            self.model.eval()
             self.model_loaded = True
-            self.logger.info("Persian sentiment model loaded successfully")
-            print(SentimentSettings.MODEL_NAME)
+            self.logger.info(f"Qwen2 sentiment model loaded successfully on {device}")
+            
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to load sentiment model: {e}")
+            self.logger.error(f"Failed to load Qwen2 model: {e}")
             raise SentimentAnalysisError(f"Model initialization failed: {e}")
     
     def analyze_text(self, text: str) -> Dict[str, Any]:
         """
-        Analyze sentiment of Persian text with Redis caching
+        Analyze sentiment using prompt-based generation
         """
-        if not self.available or not self.model_loaded or not self.pipeline:
+        if not self.available or not self.model_loaded or not self.model or not self.tokenizer:
             return {
                 "sentiment": "خنثی",
                 "confidence": 0.0,
@@ -90,31 +104,27 @@ class SentimentService(BaseService):
         # Not in cache - analyze
         try:
             truncated_text = text[:SentimentSettings.MAX_TEXT_LENGTH]
-            results = self.pipeline(truncated_text)
             
-            if results and len(results) > 0:
-                if isinstance(results[0], list):
-                    best_result = max(results[0], key=lambda x: x['score'])
-                else:
-                    best_result = results[0]
-                
-                sentiment = SentimentSettings.LABEL_MAPPING.get(
-                    best_result['label'], 
-                    best_result['label']
-                )
-                confidence = best_result['score']
-                
-                result = {
-                    "sentiment": sentiment,
-                    "confidence": round(confidence, 3),
-                    "text_preview": text[:50] + "..." if len(text) > 50 else text
-                }
-                
-                # Cache result for 1 hour (3600 seconds)
-                self.cache_service.set(cache_key, result, ttl=3600)
-                self.logger.debug(f"Sentiment cached for text hash: {text_hash[:8]}")
-                
-                return result
+            # Format prompt
+            prompt = SentimentSettings.DEEPSEEK_PROMPT_TEMPLATE.format(text=truncated_text)
+            
+            # Generate sentiment using model
+            sentiment_text = self._generate_sentiment(prompt)
+            
+            # Parse output to extract sentiment
+            sentiment, confidence = self._parse_sentiment_output(sentiment_text)
+            
+            result = {
+                "sentiment": sentiment,
+                "confidence": confidence,
+                "text_preview": text[:50] + "..." if len(text) > 50 else text
+            }
+            
+            # Cache result for 1 hour (3600 seconds)
+            self.cache_service.set(cache_key, result, ttl=3600)
+            self.logger.debug(f"Sentiment cached for text hash: {text_hash[:8]}")
+            
+            return result
             
         except Exception as e:
             self.logger.error(f"Error analyzing sentiment: {e}")
@@ -124,6 +134,68 @@ class SentimentService(BaseService):
             "confidence": 0.0,
             "error": "Analysis failed"
         }
+    
+    def _generate_sentiment(self, prompt: str) -> str:
+        """
+        Generate sentiment response using Qwen2
+        
+        Args:
+            prompt: Formatted prompt
+            
+        Returns:
+            Generated sentiment text
+        """
+        import torch
+        
+        try:
+            # Encode prompt
+            inputs = self.tokenizer.encode(prompt, return_tensors="pt")
+            
+            # Generate
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    inputs,
+                    max_new_tokens=SentimentSettings.MAX_NEW_TOKENS,
+                    temperature=SentimentSettings.TEMPERATURE,
+                    top_p=SentimentSettings.TOP_P,
+                    do_sample=True,
+                    pad_token_id=self.tokenizer.eos_token_id
+                )
+            
+            # Decode - get only the new tokens
+            generated_text = self.tokenizer.decode(
+                outputs[0][len(inputs[0]):],
+                skip_special_tokens=True
+            )
+            
+            return generated_text.strip()
+            
+        except Exception as e:
+            self.logger.error(f"Error generating sentiment: {e}")
+            return "خنثی"
+    
+    def _parse_sentiment_output(self, output: str) -> tuple:
+        """
+        Parse model output to extract sentiment label and confidence
+        
+        Args:
+            output: Generated text from model
+            
+        Returns:
+            Tuple of (sentiment, confidence)
+        """
+        output = output.strip().lower()
+        
+        # Extract sentiment words
+        for label, normalized in SentimentSettings.LABEL_MAPPING.items():
+            if label.lower() in output:
+                # High confidence if exact label found
+                confidence = 0.85
+                return normalized, confidence
+        
+        # If no clear sentiment found, default to neutral
+        self.logger.warning(f"Could not parse sentiment from: {output}")
+        return "خنثی", 0.5
     
     def analyze_batch(self, texts: List[str]) -> List[Dict[str, Any]]:
         """
@@ -276,13 +348,7 @@ class SentimentService(BaseService):
             "available": self.available
         }
     
-    def clear_cache(self) -> None:
-        """Clear sentiment cache"""
-        self._clear_cache()
-        self.sentiment_cache.clear()
-        self.logger.info("Sentiment cache cleared")
-
-    def clear_sentiment_cache(self):
+    def clear_cache(self):
         """Clear all sentiment caches"""
         # Clear in-memory cache
         self._clear_cache()

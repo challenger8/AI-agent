@@ -179,7 +179,238 @@ class DealService(BaseService):
         except Exception as e:
             self.logger.error(f"Error generating timeline for deal {deal_id}: {e}")
             raise ServiceError(f"Failed to generate timeline: {e}")
+    def detect_deal_status(self, deal: Dict[str, Any]) -> str:
+        """
+        Detect deal status from deal object with improved logic using transition timestamps
+        
+        Args:
+            deal: Deal dictionary
+            
+        Returns:
+            One of: 'won', 'lost', 'open', 'unknown'
+        """
+        if not deal:
+            return 'unknown'
+        
+        from config.settings import AnalysisSettings
+        from datetime import datetime
+        
+        # Primary: Check transition timestamp columns (most reliable)
+        change_to_won_time = deal.get('change_to_won_time') or deal.get('ChangeToWonTime')
+        change_to_loss_time = deal.get('change_to_loss_time') or deal.get('ChangeToLossTime')
+        
+        # If won timestamp exists → deal is WON
+        if change_to_won_time:
+            try:
+                if isinstance(change_to_won_time, str):
+                    won_dt = datetime.fromisoformat(change_to_won_time.replace('Z', '+00:00'))
+                else:
+                    won_dt = change_to_won_time
+                
+                # If timestamp is valid and in past → DEFINITELY WON
+                if won_dt <= datetime.now():
+                    return 'won'
+            except:
+                pass
+        
+        # If loss timestamp exists → deal is LOST
+        if change_to_loss_time:
+            try:
+                if isinstance(change_to_loss_time, str):
+                    loss_dt = datetime.fromisoformat(change_to_loss_time.replace('Z', '+00:00'))
+                else:
+                    loss_dt = change_to_loss_time
+                
+                # If timestamp is valid and in past → DEFINITELY LOST
+                if loss_dt <= datetime.now():
+                    return 'lost'
+            except:
+                pass
+        
+        # Secondary: Check Status field if timestamps don't exist
+        status_value = (
+            deal.get('Status') or 
+            deal.get('status') or 
+            deal.get('DealStatus') or 
+            deal.get('deal_status') or 
+            deal.get('deal_state') or 
+            ''
+        ).strip().lower()
+        
+        if not status_value:
+            return 'unknown'
+        
+        # Check if WON (Status text)
+        for won_status in AnalysisSettings.DEAL_STATUS_WON:
+            if won_status.lower() in status_value:
+                return 'won'
+        
+        # Check if LOST (Status text)
+        for lost_status in AnalysisSettings.DEAL_STATUS_LOST:
+            if lost_status.lower() in status_value:
+                return 'lost'
+        
+        # Check if OPEN (Status text)
+        for open_status in AnalysisSettings.DEAL_STATUS_OPEN:
+            if open_status.lower() in status_value:
+                return 'open'
+        
+        # Unknown status
+        self.logger.warning(f"Unknown deal status - Status: {status_value}, Won_time: {change_to_won_time}, Loss_time: {change_to_loss_time}")
+        return 'unknown'
     
+    def get_status_change_date(self, deal: Dict[str, Any]) -> Optional[datetime]:
+        """
+        Get when deal status changed (to won or lost)
+        
+        Args:
+            deal: Deal dictionary
+            
+        Returns:
+            Datetime of status change, or None if not applicable
+        """
+        from datetime import datetime
+        
+        # Won timestamp
+        change_to_won_time = deal.get('change_to_won_time') or deal.get('ChangeToWonTime')
+        if change_to_won_time:
+            try:
+                if isinstance(change_to_won_time, str):
+                    return datetime.fromisoformat(change_to_won_time.replace('Z', '+00:00'))
+                return change_to_won_time
+            except:
+                pass
+        
+        # Loss timestamp
+        change_to_loss_time = deal.get('change_to_loss_time') or deal.get('ChangeToLossTime')
+        if change_to_loss_time:
+            try:
+                if isinstance(change_to_loss_time, str):
+                    return datetime.fromisoformat(change_to_loss_time.replace('Z', '+00:00'))
+                return change_to_loss_time
+            except:
+                pass
+        
+        return None
+    
+    def get_days_since_status_change(self, deal: Dict[str, Any]) -> Optional[int]:
+        """
+        Get days since deal status changed (for closed deals)
+        
+        Args:
+            deal: Deal dictionary
+            
+        Returns:
+            Days since change, or None if deal is still open
+        """
+        from datetime import datetime
+        
+        status_change_date = self.get_status_change_date(deal)
+        
+        if not status_change_date:
+            return None
+        
+        days_since = (datetime.now() - status_change_date).days
+        return max(0, days_since)
+    
+    def is_deal_won(self, deal: Dict[str, Any]) -> bool:
+        """Check if deal is won"""
+        return self.detect_deal_status(deal) == 'won'
+    
+    def is_deal_lost(self, deal: Dict[str, Any]) -> bool:
+        """Check if deal is lost"""
+        return self.detect_deal_status(deal) == 'lost'
+    
+    def is_deal_open(self, deal: Dict[str, Any]) -> bool:
+        """Check if deal is still open"""
+        return self.detect_deal_status(deal) == 'open'
+    
+    def get_days_since_last_activity(self, activities: List[Any]) -> int:
+        """
+        Calculate days since last activity (for all deals, but used differently per status)
+        
+        For OPEN deals: inactivity is a problem
+        For CLOSED deals: inactivity is normal (deal is done)
+        
+        Args:
+            activities: List of activities
+            
+        Returns:
+            Days since last activity, or 999 if no activities
+        """
+        if not activities:
+            return 999
+        
+        last_activity_date = max(
+            (a.registerdate for a in activities if hasattr(a, 'registerdate') and a.registerdate),
+            default=None
+        )
+        
+        if not last_activity_date:
+            return 999
+        
+        from datetime import datetime
+        days_since = (datetime.now() - last_activity_date).days
+        return max(0, days_since)
+    
+    def get_deal_age_days(self, deal: Dict[str, Any]) -> int:
+        """
+        Calculate deal age in days (from creation to now or to close date)
+        
+        Args:
+            deal: Deal dictionary
+            
+        Returns:
+            Deal age in days, or 999 if no creation date
+        """
+        from datetime import datetime
+        
+        register_time = deal.get('RegisterTime') or deal.get('register_time')
+        
+        if not register_time:
+            return 999
+        
+        if isinstance(register_time, str):
+            try:
+                register_time = datetime.fromisoformat(register_time.replace('Z', '+00:00'))
+            except:
+                return 999
+        
+        if not isinstance(register_time, datetime):
+            return 999
+        
+        # If deal is closed, calculate age until close date
+        status_change_date = self.get_status_change_date(deal)
+        end_date = status_change_date if status_change_date else datetime.now()
+        
+        age_days = (end_date - register_time).days
+        return max(0, age_days)
+    
+    def has_recent_followup(self, activities: List[Any], days: int = 30) -> bool:
+        """
+        Check if there's recent followup activity (for closed deals)
+        Only check activities AFTER deal was closed
+        
+        Args:
+            activities: List of activities
+            deal: Deal dictionary (needed to check close date)
+            days: Days to check back from close date
+            
+        Returns:
+            True if activity within days after close, False otherwise
+        """
+        if not activities:
+            return False
+        
+        from datetime import datetime, timedelta
+        cutoff = datetime.now() - timedelta(days=days)
+        
+        for activity in activities:
+            if hasattr(activity, 'registerdate') and activity.registerdate:
+                if activity.registerdate >= cutoff:
+                    return True
+        
+        return False
     def _calculate_deal_duration(self, deal: Dict[str, Any]) -> Optional[int]:
         """Calculate deal duration in days"""
         try:

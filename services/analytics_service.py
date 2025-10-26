@@ -248,173 +248,394 @@ class AnalyticsService(BaseService):
             "dominant_sentiment": "خنثی"
         }
     
+    
     def _calculate_health_score(self, deal: Dict[str, Any], activities: List[Any], 
                                 sentiment_summary: Dict[str, Any]) -> int:
         """
-        Calculate deal health score (0-100)
+        Calculate deal health score based on deal status
+        Routes to appropriate scoring method
         
-        Factors:
-        - Activity recency
-        - Activity frequency
-        - Sentiment trends
-        - Deal age
-        - Status progression
-        """
-        score = AnalysisSettings.HEALTH_SCORE_BASE
-        
-        if not activities:
-            return max(0, score - 30)  # Penalize deals with no activities
-        
-        now = datetime.now()
-        
-        # Factor 1: Activity Recency (max +15 points)
-        last_activity_date = max(
-            (a.registerdate for a in activities if a.registerdate),
-            default=None
-        )
-        
-        if last_activity_date:
-            days_since_activity = (now - last_activity_date).days
+        Args:
+            deal: Deal data
+            activities: Deal activities
+            sentiment_summary: Sentiment analysis summary
             
-            if days_since_activity <= 7:
-                score += AnalysisSettings.RECENT_ACTIVITY_BONUS  # +15
-            elif days_since_activity <= 14:
-                score += 10
-            elif days_since_activity <= 30:
-                score += 5
-            else:
-                score -= 25  # Stale activity penalty
+        Returns:
+            Health score 0-100
+        """
+        status = self.deal_service.detect_deal_status(deal)
         
-        # Factor 2: Activity Frequency (max +10 points)
+        if status == 'won':
+            return self._calculate_health_score_won(deal, activities)
+        elif status == 'lost':
+            return self._calculate_health_score_lost(deal, activities)
+        elif status == 'open':
+            return self._calculate_health_score_open(deal, activities, sentiment_summary)
+        else:
+            return 30  # Unknown status gets low score
+    
+    def _calculate_health_score_won(self, deal: Dict[str, Any], activities: List[Any]) -> int:
+        """
+        Score a WON deal (closed successfully)
+        
+        Won deals start at high baseline.
+        Penalty only if: no followup activities after close date
+        
+        Args:
+            deal: Deal data
+            activities: Deal activities
+            
+        Returns:
+            Health score 0-100
+        """
+        from config.settings import AnalysisSettings
+        
+        score = AnalysisSettings.WON_DEAL_BASE_SCORE  # Start at 85
+        
+        # Check for followup after deal was won
+        has_followup = self.deal_service.has_recent_followup(activities, days=30)
+        
+        if not has_followup:
+            # Small penalty if no followup (important for customer satisfaction)
+            score -= 10
+        else:
+            # Bonus for good followup
+            score += 10
+        
+        # Cap at 100
+        return min(100, max(0, score))
+    
+    def _calculate_health_score_lost(self, deal: Dict[str, Any], activities: List[Any]) -> int:
+        """
+        Score a LOST deal (closed unsuccessfully)
+        
+        Lost deals get low score as they didn't close successfully.
+        No activity penalties (deal is done).
+        
+        Args:
+            deal: Deal data
+            activities: Deal activities (not used but kept for consistency)
+            
+        Returns:
+            Health score 0-100
+        """
+        from config.settings import AnalysisSettings
+        
+        score = AnalysisSettings.LOST_DEAL_BASE_SCORE  # Start at 20
+        
+        # Check if there were enough activities before loss
+        # (indicates effort was made before losing)
         activity_count = len(activities)
         
-        if activity_count >= 20:
-            score += 10
-        elif activity_count >= 10:
-            score += 7
-        elif activity_count >= 5:
-            score += 5
+        if activity_count >= 5:
+            score += 10  # Bonus: lots of effort made
         elif activity_count >= 2:
-            score += 2
+            score += 5   # Some effort
+        # If < 2 activities: no bonus (gave up too early)
         
-        # Factor 3: Activity Variety (max +8 points)
+        # Cap at 100, but keep it low
+        return min(50, max(0, score))
+    
+    def _calculate_health_score_open(self, deal: Dict[str, Any], activities: List[Any],
+                                     sentiment_summary: Dict[str, Any]) -> int:
+        """
+        Score an OPEN deal (still in progress)
+        
+        Heavily penalizes inactivity.
+        Rewards activity frequency, variety, and positive sentiment.
+        
+        Args:
+            deal: Deal data
+            activities: Deal activities
+            sentiment_summary: Sentiment analysis summary
+            
+        Returns:
+            Health score 0-100
+        """
+        from config.settings import AnalysisSettings
+        from datetime import datetime
+        
+        score = AnalysisSettings.OPEN_DEAL_BASE_SCORE  # Start at 50
+        
+        # ========== FACTOR 1: Activity Presence ==========
+        activity_count = len(activities)
+        
+        if activity_count == 0:
+            score -= AnalysisSettings.OPEN_DEAL_NO_ACTIVITIES_PENALTY  # -30
+        
+        # ========== FACTOR 2: Activity Recency (MOST IMPORTANT) ==========
+        days_since_activity = self.deal_service.get_days_since_last_activity(activities)
+        
+        if days_since_activity <= AnalysisSettings.INACTIVITY_RECENT_DAYS:  # <= 7 days
+            score += AnalysisSettings.RECENT_ACTIVITY_BONUS  # +15 (good!)
+        
+        elif days_since_activity <= AnalysisSettings.INACTIVITY_WARNING_DAYS:  # 7-14 days
+            score += 10  # Still good but declining
+        
+        elif days_since_activity <= AnalysisSettings.INACTIVITY_CONCERN_DAYS:  # 14-30 days
+            score -= AnalysisSettings.OPEN_DEAL_WARNING_INACTIVITY_PENALTY  # -15 (warning)
+        
+        elif days_since_activity <= AnalysisSettings.INACTIVITY_CRITICAL_DAYS:  # 30-60 days
+            score -= AnalysisSettings.OPEN_DEAL_CONCERN_INACTIVITY_PENALTY  # -30 (concern)
+        
+        else:  # > 60 days
+            score -= AnalysisSettings.OPEN_DEAL_CRITICAL_INACTIVITY_PENALTY  # -40 (critical)
+        
+        # ========== FACTOR 3: Activity Frequency ==========
+        if activity_count >= AnalysisSettings.ACTIVITY_FREQUENCY_HIGH:  # >= 10
+            score += 10
+        elif activity_count >= AnalysisSettings.ACTIVITY_FREQUENCY_MEDIUM:  # >= 5
+            score += 5
+        elif activity_count >= AnalysisSettings.ACTIVITY_FREQUENCY_LOW:  # >= 3
+            score += 2
+        # Less than 3 activities: no bonus
+        
+        # ========== FACTOR 4: Activity Variety ==========
         activity_types = set()
         for activity in activities:
             if hasattr(activity, 'activitytypeid') and activity.activitytypeid:
                 activity_types.add(activity.activitytypeid)
         
         variety_count = len(activity_types)
-        if variety_count >= 5:
+        
+        if variety_count >= AnalysisSettings.ACTIVITY_VARIETY_THRESHOLD:  # >= 3 types
             score += AnalysisSettings.ACTIVITY_VARIETY_BONUS  # +8
-        elif variety_count >= 3:
-            score += 5
         elif variety_count >= 2:
-            score += 2
+            score += 4
+        # Single type: no variety bonus
         
-        # Factor 4: Sentiment (max +15 or -15 points)
+        # ========== FACTOR 5: Sentiment (only for open deals) ==========
         if sentiment_summary.get("sentiment_available"):
-            dominant = sentiment_summary.get("dominant_sentiment", "خنثی")
+            dominant_sentiment = sentiment_summary.get("dominant_sentiment", "خنثی")
+            avg_confidence = sentiment_summary.get("average_confidence", 0.0)
             
-            if dominant in ["مثبت", "positive"]:
-                score += 15
-            elif dominant in  ["منفی", "negative"]:
-                score -= 25
-            # Neutral = no change
+            # Only apply if confidence is high enough
+            if avg_confidence >= AnalysisSettings.SENTIMENT_CONFIDENCE_THRESHOLD:
+                
+                if dominant_sentiment in ["مثبت", "positive", "POSITIVE"]:
+                    score += AnalysisSettings.POSITIVE_SENTIMENT_BONUS  # +15
+                
+                elif dominant_sentiment in ["منفی", "negative", "NEGATIVE"]:
+                    score -= AnalysisSettings.NEGATIVE_SENTIMENT_PENALTY  # -20 (balanced)
+                
+                # Neutral: no change
         
-        # Factor 5: Deal Age (penalty for old deals)
-        register_time = deal.get('RegisterTime')
-        if register_time:
-            deal_age_days = (now - self._parse_datetime(register_time)).days
-            
-            if deal_age_days > 90:
-                score -= 40
-            elif deal_age_days > AnalysisSettings.AGING_DEAL_DAYS:  # 60 days
-                score -= 20
+        # ========== FACTOR 6: Deal Age (penalty for VERY old open deals) ==========
+        deal_age_days = self.deal_service.get_deal_age_days(deal)
         
-        # Factor 6: Deal Status
-        status = deal.get('status', '').lower()
+        if deal_age_days > 180:
+            score -= 30  # Very old open deal
+        elif deal_age_days > 120:
+            score -= 20
+        elif deal_age_days > AnalysisSettings.AGING_DEAL_DAYS:  # > 60 days
+            score -= 10
         
-        if 'won' in status or 'بسته شده' in status:
-            score += 10  # Closed deals are healthy
-        elif 'lost' in status or 'لغو' in status:
-            score -= 20  # Lost deals are unhealthy
-        
-        # Cap score between 0 and 100
+        # ========== CAP SCORE ==========
         return max(0, min(AnalysisSettings.HEALTH_SCORE_MAX, score))
-    
     def _identify_risk_indicators(self, deal: Dict[str, Any], activities: List[Any], 
                                   health_score: int) -> List[Dict[str, Any]]:
-        """Identify risk indicators for the deal"""
-        risks = []
-        now = datetime.now()
+        """
+        Identify risk indicators based on deal status
+        Routes to appropriate risk detection method
         
-        # Risk 1: Low Health Score
-        if health_score < AnalysisSettings.HEALTH_MEDIUM_THRESHOLD:
+        Args:
+            deal: Deal data
+            activities: Deal activities
+            health_score: Already calculated health score
+            
+        Returns:
+            List of risk indicators
+        """
+        status = self.deal_service.detect_deal_status(deal)
+        
+        if status == 'won':
+            return self._identify_risks_won_deal(deal, activities)
+        elif status == 'lost':
+            return self._identify_risks_lost_deal(deal, activities)
+        elif status == 'open':
+            return self._identify_risks_open_deal(deal, activities, health_score)
+        else:
+            return [{
+                "type": "unknown_status",
+                "severity": "high",
+                "description": "حالت معامله نامشخص است",
+                "recommendation": "بررسی وضعیت معامله و بروزرسانی"
+            }]
+    
+    def _identify_risks_won_deal(self, deal: Dict[str, Any], activities: List[Any]) -> List[Dict[str, Any]]:
+        """
+        Identify risks for WON deals
+        
+        Won deals should be in "done" state.
+        Only risk: lack of customer followup/satisfaction check
+        
+        Args:
+            deal: Deal data
+            activities: Deal activities
+            
+        Returns:
+            List of risks (usually empty for healthy won deals)
+        """
+        from config.settings import AnalysisSettings
+        
+        risks = []
+        
+        # Check for followup
+        has_followup = self.deal_service.has_recent_followup(activities, days=30)
+        
+        if not has_followup:
             risks.append({
-                "type": "low_health_score",
-                "severity": "high" if health_score < 30 else "medium",
-                "description": f"امتیاز سلامت پایین: {health_score}/100",
-                "recommendation": "بازبینی استراتژی معامله و افزایش تعامل با مشتری"
+                "type": "no_followup_after_close",
+                "severity": "low",
+                "description": "معامله بسته شده - فاقد پیگیری پس از فروش",
+                "recommendation": "تنظیم جلسه پیگیری با مشتری برای بررسی رضایت و فروش بیشتر"
             })
         
-        # Risk 2: Stale Activity
-        if activities:
-            last_activity_date = max(
-                (a.registerdate for a in activities if a.registerdate),
-                default=None
-            )
+        return risks
+    
+    def _identify_risks_lost_deal(self, deal: Dict[str, Any], activities: List[Any]) -> List[Dict[str, Any]]:
+        """
+        Identify risks for LOST deals
+        
+        Lost deals are failed closures.
+        Risk: analyze why it was lost
+        
+        Args:
+            deal: Deal data
+            activities: Deal activities
             
-            if last_activity_date:
-                days_since_activity = (now - last_activity_date).days
-                
-                if days_since_activity >= AnalysisSettings.STALE_ACTIVITY_DAYS:
-                    risks.append({
-                        "type": "stale_activity",
-                        "severity": "high" if days_since_activity > 30 else "medium",
-                        "description": f"عدم فعالیت به مدت {days_since_activity} روز",
-                        "recommendation": "پیگیری فوری و برنامه‌ریزی جلسه با مشتری"
-                    })
-        else:
+        Returns:
+            List of risks
+        """
+        risks = []
+        
+        # Document the loss
+        days_since_loss = self.deal_service.get_days_since_status_change(deal)
+        loss_date_info = f"{days_since_loss} روز پیش" if days_since_loss else "نامشخص"
+        
+        risks.append({
+            "type": "deal_lost",
+            "severity": "high",
+            "description": f"معامله از دست رفت ({loss_date_info})",
+            "recommendation": "تحلیل دلایل ضعف معامله و یادگیری برای معاملات بعدی"
+        })
+        
+        # Check if there were enough activities before loss
+        if len(activities) < 3:
+            risks.append({
+                "type": "insufficient_effort",
+                "severity": "medium",
+                "description": "تلاش محدود قبل از از دست رفتن معامله",
+                "recommendation": "افزایش فعالیت و تعامل در معاملات آینده"
+            })
+        
+        return risks
+    
+    def _identify_risks_open_deal(self, deal: Dict[str, Any], activities: List[Any], 
+                                 health_score: int) -> List[Dict[str, Any]]:
+        """
+        Identify risks for OPEN deals (still in progress)
+        
+        Focuses on inactivity and engagement issues.
+        
+        Args:
+            deal: Deal data
+            activities: Deal activities
+            health_score: Already calculated health score
+            
+        Returns:
+            List of risks
+        """
+        from config.settings import AnalysisSettings
+        
+        risks = []
+        
+        # ========== RISK 1: Low Health Score ==========
+        if health_score < AnalysisSettings.HEALTH_MEDIUM_THRESHOLD:  # < 40
+            risks.append({
+                "type": "low_health_score",
+                "severity": "high" if health_score < 25 else "medium",
+                "description": f"امتیاز سلامت معامله پایین: {health_score}/100",
+                "recommendation": "بازبینی فوری استراتژی معامله و افزایش تعامل با مشتری"
+            })
+        
+        # ========== RISK 2: Inactivity ==========
+        days_since_activity = self.deal_service.get_days_since_last_activity(activities)
+        
+        if days_since_activity > AnalysisSettings.INACTIVITY_CRITICAL_DAYS:  # > 60 days
+            risks.append({
+                "type": "critical_inactivity",
+                "severity": "critical",
+                "description": f"عدم فعالیت به مدت {days_since_activity} روز",
+                "recommendation": "پیگیری فوری و تنظیم جلسه اضطراری با مشتری"
+            })
+        
+        elif days_since_activity > AnalysisSettings.INACTIVITY_CONCERN_DAYS:  # > 30 days
+            risks.append({
+                "type": "high_inactivity",
+                "severity": "high",
+                "description": f"عدم فعالیت به مدت {days_since_activity} روز",
+                "recommendation": "پیگیری فوری و برنامه‌ریزی جلسه با مشتری"
+            })
+        
+        elif days_since_activity > AnalysisSettings.INACTIVITY_WARNING_DAYS:  # > 14 days
+            risks.append({
+                "type": "moderate_inactivity",
+                "severity": "medium",
+                "description": f"عدم فعالیت به مدت {days_since_activity} روز",
+                "recommendation": "تماس تلفنی و برنامه‌ریزی جلسه بعدی"
+            })
+        
+        # ========== RISK 3: No Activities ==========
+        if len(activities) == 0:
             risks.append({
                 "type": "no_activity",
                 "severity": "critical",
                 "description": "هیچ فعالیتی ثبت نشده است",
-                "recommendation": "شروع فوری تعامل با مشتری"
+                "recommendation": "شروع فوری تعامل با مشتری و ثبت فعالیت"
             })
         
-        # Risk 3: Aging Deal
-        register_time = deal.get('RegisterTime')
-        if register_time:
-            deal_age_days = (now - self._parse_datetime(register_time)).days
-            
-            if deal_age_days > AnalysisSettings.AGING_DEAL_DAYS:
-                risks.append({
-                    "type": "aging_deal",
-                    "severity": "medium",
-                    "description": f"معامله {deal_age_days} روز باز است",
-                    "recommendation": "بررسی دلایل طولانی شدن و تعیین برنامه بستن"
-                })
+        # ========== RISK 4: Very Old Open Deal ==========
+        deal_age_days = self.deal_service.get_deal_age_days(deal)
         
-        # Risk 4: Negative Sentiment Trend
-        # This would require sentiment history - simplified for now
+        if deal_age_days > 180:  # > 6 months
+            risks.append({
+                "type": "very_old_deal",
+                "severity": "high",
+                "description": f"معامله {deal_age_days} روز باز است (>{180} روز)",
+                "recommendation": "تصمیم‌گیری درباره تسویه یا بستن معامله"
+            })
         
-        # Risk 5: No Recent Contact
-        cold_threshold = AnalysisSettings.COLD_DEAL_DAYS
-        if activities:
-            last_activity_date = max(
-                (a.registerdate for a in activities if a.registerdate),
-                default=None
-            )
-            
-            if last_activity_date:
-                days_since = (now - last_activity_date).days
-                if days_since > cold_threshold:
-                    risks.append({
-                        "type": "cold_deal",
-                        "severity": "high",
-                        "description": f"تماس آخر {days_since} روز پیش",
-                        "recommendation": "احیای ارتباط با مشتری"
-                    })
+        elif deal_age_days > AnalysisSettings.AGING_DEAL_DAYS:  # > 60 days
+            risks.append({
+                "type": "aging_deal",
+                "severity": "medium",
+                "description": f"معامله {deal_age_days} روز باز است",
+                "recommendation": "بررسی دلایل طولانی‌شدن و مشخص‌کردن زمان بندی برای بستن"
+            })
+        
+        # ========== RISK 5: Low Activity Frequency ==========
+        if len(activities) < 2:
+            risks.append({
+                "type": "low_activity_frequency",
+                "severity": "medium",
+                "description": f"تعداد کم فعالیت: {len(activities)} فعالیت",
+                "recommendation": "افزایش تعامل و تماس‌های منظم با مشتری"
+            })
+        
+        # ========== RISK 6: Low Activity Variety ==========
+        activity_types = set()
+        for activity in activities:
+            if hasattr(activity, 'activitytypeid') and activity.activitytypeid:
+                activity_types.add(activity.activitytypeid)
+        
+        if len(activity_types) == 1 and len(activities) > 0:
+            risks.append({
+                "type": "low_activity_variety",
+                "severity": "low",
+                "description": f"فعالیت‌ها از یک نوع فقط: {list(activity_types)[0]}",
+                "recommendation": "تنوع‌بخشی در نوع تعاملات (جلسات، تماس‌ها، ایمیل‌ها)"
+            })
         
         return risks
     

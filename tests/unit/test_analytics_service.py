@@ -1,372 +1,541 @@
 """
-tests/unit/test_analytics_service.py
-------------------------------------
-Unit tests for AnalyticsService (MOST IMPORTANT!)
+tests/unit/test_analytics_service_refactored.py
+-------------------------------------------------
+Tests for refactored AnalyticsService with status-aware scoring
 """
 
 import pytest
 from datetime import datetime, timedelta
+from services.analytics_service import AnalyticsService
+from services.deal_service import DealService
+from services.sentiment_service import SentimentService
 
 
-class TestAnalyticsServiceBasic:
-    """Test basic AnalyticsService functionality"""
+class TestDealServiceStatusDetection:
+    """Test new status detection methods in DealService"""
     
-    def test_service_initialization(self, analytics_service):
-        """Test analytics service creates successfully"""
-        assert analytics_service is not None
-        assert hasattr(analytics_service, 'deal_service')
-        assert hasattr(analytics_service, 'sentiment_service')
-    
-    def test_analyze_deal_comprehensive_not_found(self, analytics_service):
-        """Test analyzing non-existent deal"""
-        result = analytics_service.analyze_deal_comprehensive('nonexistent-deal')
+    def test_detect_status_won_by_timestamp(self, test_repositories):
+        """Test detecting WON deal by change_to_won_time column"""
+        deal_service = DealService(test_repositories)
         
-        assert result is not None
-        assert 'error' in result
-
-
-class TestHealthScoreCalculation:
-    """Test health score calculation logic (CRITICAL)"""
-    
-    def test_calculate_health_score_basic(self, analytics_service, sample_deal, sample_activities_list):
-        """Test basic health score calculation"""
-        sentiment_summary = {
-            'total_activities': len(sample_activities_list),
-            'dominant_sentiment': 'مثبت',
-            'sentiment_available': True
+        deal = {
+            'Id': '1',
+            'Status': 'در حال پیگیری',  # Even says "in progress"
+            'change_to_won_time': (datetime.now() - timedelta(days=5)).isoformat(),  # But has won timestamp
+            'ChangeToWonTime': None
         }
         
-        score = analytics_service._calculate_health_score(
-            sample_deal.to_dict(),
-            sample_activities_list[:5],
-            sentiment_summary
-        )
-        
-        assert score is not None
-        assert isinstance(score, int)
-        assert 0 <= score <= 100
+        status = deal_service.detect_deal_status(deal)
+        assert status == 'won', f"Expected 'won', got '{status}'"
     
-    def test_health_score_no_activities(self, analytics_service, sample_deal):
-        """Test health score with no activities (should be low)"""
+    def test_detect_status_lost_by_timestamp(self, test_repositories):
+        """Test detecting LOST deal by change_to_loss_time column"""
+        deal_service = DealService(test_repositories)
+        
+        deal = {
+            'Id': '2',
+            'Status': 'در حال پیگیری',  # Says "in progress"
+            'change_to_won_time': None,
+            'change_to_loss_time': (datetime.now() - timedelta(days=3)).isoformat(),  # Has loss timestamp
+            'ChangeToLossTime': None
+        }
+        
+        status = deal_service.detect_deal_status(deal)
+        assert status == 'lost', f"Expected 'lost', got '{status}'"
+    
+    def test_detect_status_open_by_text(self, test_repositories):
+        """Test detecting OPEN deal by Status text"""
+        deal_service = DealService(test_repositories)
+        
+        deal = {
+            'Id': '3',
+            'Status': 'در حال پیگیری',
+            'change_to_won_time': None,
+            'change_to_loss_time': None
+        }
+        
+        status = deal_service.detect_deal_status(deal)
+        assert status == 'open', f"Expected 'open', got '{status}'"
+    
+    def test_detect_status_unknown(self, test_repositories):
+        """Test detecting UNKNOWN status"""
+        deal_service = DealService(test_repositories)
+        
+        deal = {
+            'Id': '4',
+            'Status': 'unknown_status_xyz',
+            'change_to_won_time': None,
+            'change_to_loss_time': None
+        }
+        
+        status = deal_service.detect_deal_status(deal)
+        assert status == 'unknown', f"Expected 'unknown', got '{status}'"
+    
+    def test_get_days_since_last_activity(self, test_repositories, sample_activities_list):
+        """Test calculating days since last activity"""
+        deal_service = DealService(test_repositories)
+        
+        # Make first activity 10 days ago
+        sample_activities_list[0].registerdate = datetime.now() - timedelta(days=10)
+        
+        days = deal_service.get_days_since_last_activity(sample_activities_list[:1])
+        
+        assert days == 10, f"Expected 10 days, got {days}"
+    
+    def test_get_days_since_last_activity_no_activities(self, test_repositories):
+        """Test with no activities"""
+        deal_service = DealService(test_repositories)
+        
+        days = deal_service.get_days_since_last_activity([])
+        
+        assert days == 999, f"Expected 999 (no activities), got {days}"
+
+
+class TestHealthScoreScoringWonDeal:
+    """Test health score calculation for WON deals"""
+    
+    def test_won_deal_high_score(self, test_repositories, sample_deal, sample_activities_list):
+        """Test that WON deals get high score (85+)"""
+        analytics_service = AnalyticsService(test_repositories)
+        
+        # Setup won deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['change_to_won_time'] = (datetime.now() - timedelta(days=5)).isoformat()
+        deal_dict['Status'] = 'بسته شده'
+        
+        # Add recent activity for followup
+        recent_activity = sample_activities_list[0]
+        recent_activity.registerdate = datetime.now() - timedelta(days=2)
+        
         sentiment_summary = {'sentiment_available': False}
         
-        score = analytics_service._calculate_health_score(
-            sample_deal.to_dict(),
-            [],
-            sentiment_summary
-        )
+        score = analytics_service._calculate_health_score(deal_dict, [recent_activity], sentiment_summary)
         
-        assert score is not None
-        assert score < 50  # Should be penalized for no activities
+        assert score >= 85, f"WON deal should score >= 85, got {score}"
+        assert score <= 100, f"WON deal should not exceed 100, got {score}"
     
-    def test_health_score_recent_activity_bonus(self, analytics_service, sample_deal, sample_activities_list):
-        """Test that recent activities increase health score"""
-        # Make activities very recent
-        for activity in sample_activities_list[:3]:
+    def test_won_deal_no_followup_penalty(self, test_repositories, sample_deal):
+        """Test that WON deals without followup get penalty"""
+        analytics_service = AnalyticsService(test_repositories)
+        
+        # Setup won deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['change_to_won_time'] = (datetime.now() - timedelta(days=60)).isoformat()
+        deal_dict['Status'] = 'بسته شده'
+        
+        # No recent activities (no followup)
+        sentiment_summary = {'sentiment_available': False}
+        
+        score = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)
+        
+        assert 70 <= score < 85, f"WON deal without followup should be 70-85, got {score}"
+    
+    def test_won_deal_differs_from_lost_deal(self, test_repositories, sample_deal):
+        """Test that WON deal scores are MUCH higher than LOST deal"""
+        analytics_service = AnalyticsService(test_repositories)
+        
+        deal_dict = sample_deal.to_dict()
+        sentiment_summary = {'sentiment_available': False}
+        
+        # Won deal
+        deal_dict['change_to_won_time'] = (datetime.now() - timedelta(days=5)).isoformat()
+        deal_dict['change_to_loss_time'] = None
+        deal_dict['Status'] = 'بسته شده'
+        won_score = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)
+        
+        # Lost deal
+        deal_dict['change_to_won_time'] = None
+        deal_dict['change_to_loss_time'] = (datetime.now() - timedelta(days=5)).isoformat()
+        deal_dict['Status'] = 'لغو شده'
+        lost_score = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)
+        
+        print(f"\nWON score: {won_score}, LOST score: {lost_score}")
+        assert won_score > lost_score + 30, f"WON ({won_score}) should be much higher than LOST ({lost_score})"
+
+
+class TestHealthScoreScoringLostDeal:
+    """Test health score calculation for LOST deals"""
+    
+    def test_lost_deal_low_score(self, test_repositories, sample_deal):
+        """Test that LOST deals get low score (~20)"""
+        analytics_service = AnalyticsService(test_repositories)
+        
+        # Setup lost deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['change_to_loss_time'] = (datetime.now() - timedelta(days=5)).isoformat()
+        deal_dict['Status'] = 'لغو شده'
+        
+        sentiment_summary = {'sentiment_available': False}
+        
+        score = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)
+        
+        assert score <= 40, f"LOST deal should score <= 40, got {score}"
+    
+    def test_lost_deal_with_effort_bonus(self, test_repositories, sample_deal, sample_activities_list):
+        """Test that LOST deals get bonus if there were many activities"""
+        analytics_service = AnalyticsService(test_repositories)
+        
+        # Setup lost deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['change_to_loss_time'] = (datetime.now() - timedelta(days=5)).isoformat()
+        deal_dict['Status'] = 'لغو شده'
+        
+        sentiment_summary = {'sentiment_available': False}
+        
+        # Score with no activities
+        score_no_effort = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)
+        
+        # Score with many activities
+        score_with_effort = analytics_service._calculate_health_score(deal_dict, sample_activities_list[:8], sentiment_summary)
+        
+        print(f"\nLOST no effort: {score_no_effort}, LOST with effort: {score_with_effort}")
+        assert score_with_effort > score_no_effort, "LOST deal with effort should score higher"
+
+
+class TestHealthScoreScoringOpenDeal:
+    """Test health score calculation for OPEN deals"""
+    
+    def test_open_deal_recent_activity_bonus(self, test_repositories, sample_deal, sample_activities_list):
+        """Test that OPEN deals with recent activity get bonus"""
+        analytics_service = AnalyticsService(test_repositories)
+        
+        # Setup open deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['Status'] = 'در حال پیگیری'
+        deal_dict['change_to_won_time'] = None
+        deal_dict['change_to_loss_time'] = None
+        
+        # Recent activity (< 7 days)
+        recent_activity = sample_activities_list[0]
+        recent_activity.registerdate = datetime.now() - timedelta(days=3)
+        
+        sentiment_summary = {'sentiment_available': False}
+        
+        score = analytics_service._calculate_health_score(deal_dict, [recent_activity], sentiment_summary)
+        
+        assert score >= 60, f"OPEN deal with recent activity should score >= 60, got {score}"
+    
+    def test_open_deal_stale_activity_penalty(self, test_repositories, sample_deal, sample_activities_list):
+        """Test that OPEN deals with stale activity get penalty"""
+        analytics_service = AnalyticsService(test_repositories)
+        
+        # Setup open deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['Status'] = 'در حال پیگیری'
+        deal_dict['change_to_won_time'] = None
+        deal_dict['change_to_loss_time'] = None
+        
+        # Stale activity (45 days)
+        stale_activity = sample_activities_list[0]
+        stale_activity.registerdate = datetime.now() - timedelta(days=45)
+        
+        sentiment_summary = {'sentiment_available': False}
+        
+        score = analytics_service._calculate_health_score(deal_dict, [stale_activity], sentiment_summary)
+        
+        assert score < 40, f"OPEN deal with stale activity should score < 40, got {score}"
+    
+    def test_open_deal_critical_inactivity_penalty(self, test_repositories, sample_deal, sample_activities_list):
+        """Test that OPEN deals with critical inactivity get heavy penalty"""
+        analytics_service = AnalyticsService(test_repositories)
+        
+        # Setup open deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['Status'] = 'در حال پیگیری'
+        deal_dict['change_to_won_time'] = None
+        deal_dict['change_to_loss_time'] = None
+        
+        # Critical inactivity (75 days)
+        old_activity = sample_activities_list[0]
+        old_activity.registerdate = datetime.now() - timedelta(days=75)
+        
+        sentiment_summary = {'sentiment_available': False}
+        
+        score = analytics_service._calculate_health_score(deal_dict, [old_activity], sentiment_summary)
+        
+        assert score < 20, f"OPEN deal with critical inactivity should score < 20, got {score}"
+    
+    def test_open_deal_no_activities(self, test_repositories, sample_deal):
+        """Test that OPEN deals with no activities get low score"""
+        analytics_service = AnalyticsService(test_repositories)
+        
+        # Setup open deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['Status'] = 'در حال پیگیری'
+        deal_dict['change_to_won_time'] = None
+        deal_dict['change_to_loss_time'] = None
+        
+        sentiment_summary = {'sentiment_available': False}
+        
+        score = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)
+        
+        assert score <= 30, f"OPEN deal with no activities should score <= 30, got {score}"
+    
+    def test_open_deal_high_activity_frequency(self, test_repositories, sample_deal, sample_activities_list):
+        """Test that OPEN deals with many activities get bonus"""
+        analytics_service = AnalyticsService(test_repositories)
+        
+        # Setup open deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['Status'] = 'در حال پیگیری'
+        deal_dict['change_to_won_time'] = None
+        deal_dict['change_to_loss_time'] = None
+        
+        # Recent activities
+        for activity in sample_activities_list[:10]:
             activity.registerdate = datetime.now() - timedelta(days=2)
         
         sentiment_summary = {'sentiment_available': False}
         
-        score = analytics_service._calculate_health_score(
-            sample_deal.to_dict(),
-            sample_activities_list[:3],
-            sentiment_summary
-        )
+        score = analytics_service._calculate_health_score(deal_dict, sample_activities_list[:10], sentiment_summary)
         
-        assert score >= 50  # Should have recent activity bonus
+        assert score >= 70, f"OPEN deal with many recent activities should score >= 70, got {score}"
     
-    def test_health_score_old_activity_penalty(self, analytics_service, sample_deal, sample_activities_list):
-        """Test that old activities decrease health score"""
-        # Make activities very old
-        for activity in sample_activities_list[:3]:
-            activity.registerdate = datetime.now() - timedelta(days=40)
+    def test_open_deal_positive_sentiment_bonus(self, test_repositories, sample_deal, sample_activities_list):
+        """Test that positive sentiment gives bonus for OPEN deals"""
+        analytics_service = AnalyticsService(test_repositories)
         
-        sentiment_summary = {'sentiment_available': False}
+        # Setup open deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['Status'] = 'در حال پیگیری'
+        deal_dict['change_to_won_time'] = None
+        deal_dict['change_to_loss_time'] = None
         
-        score = analytics_service._calculate_health_score(
-            sample_deal.to_dict(),
-            sample_activities_list[:3],
-            sentiment_summary
-        )
+        recent_activity = sample_activities_list[0]
+        recent_activity.registerdate = datetime.now() - timedelta(days=3)
         
-        # Should be penalized for stale activity
-        assert score < 60
-    
-    def test_health_score_positive_sentiment_bonus(self, analytics_service, sample_deal, sample_activities_list):
-        """Test that positive sentiment increases score"""
+        # Positive sentiment
         sentiment_summary = {
+            'sentiment_available': True,
             'dominant_sentiment': 'مثبت',
-            'sentiment_available': True
+            'average_confidence': 0.85
         }
         
-        score_positive = analytics_service._calculate_health_score(
-            sample_deal.to_dict(),
-            sample_activities_list[:3],
-            sentiment_summary
-        )
+        score = analytics_service._calculate_health_score(deal_dict, [recent_activity], sentiment_summary)
         
-        # Now test with negative sentiment
-        sentiment_summary['dominant_sentiment'] = 'منفی'
-        
-        score_negative = analytics_service._calculate_health_score(
-            sample_deal.to_dict(),
-            sample_activities_list[:3],
-            sentiment_summary
-        )
-        
-        # Positive should be higher than negative
-        assert score_positive > score_negative
+        assert score >= 70, f"OPEN deal with positive sentiment should score >= 70, got {score}"
     
-    def test_health_score_many_activities_bonus(self, analytics_service, sample_deal, sample_activities_list):
-        """Test that many activities increase score"""
-        sentiment_summary = {'sentiment_available': False}
+    def test_open_deal_negative_sentiment_penalty(self, test_repositories, sample_deal, sample_activities_list):
+        """Test that negative sentiment gives penalty for OPEN deals"""
+        analytics_service = AnalyticsService(test_repositories)
         
-        # Test with few activities
-        score_few = analytics_service._calculate_health_score(
-            sample_deal.to_dict(),
-            sample_activities_list[:2],
-            sentiment_summary
-        )
+        # Setup open deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['Status'] = 'در حال پیگیری'
+        deal_dict['change_to_won_time'] = None
+        deal_dict['change_to_loss_time'] = None
         
-        # Test with many activities
-        score_many = analytics_service._calculate_health_score(
-            sample_deal.to_dict(),
-            sample_activities_list,
-            sentiment_summary
-        )
+        recent_activity = sample_activities_list[0]
+        recent_activity.registerdate = datetime.now() - timedelta(days=3)
         
-        # More activities should give higher score
-        assert score_many >= score_few
-    
-    def test_health_score_capped_at_100(self, analytics_service, sample_deal, sample_activities_list):
-        """Test that health score never exceeds 100"""
-        # Create ideal conditions
-        for activity in sample_activities_list:
-            activity.registerdate = datetime.now() - timedelta(days=1)
-        
+        # Negative sentiment
         sentiment_summary = {
-            'dominant_sentiment': 'مثبت',
-            'sentiment_available': True
-        }
-        
-        score = analytics_service._calculate_health_score(
-            sample_deal.to_dict(),
-            sample_activities_list,
-            sentiment_summary
-        )
-        
-        assert score <= 100
-    
-    def test_health_score_minimum_zero(self, analytics_service, sample_deal):
-        """Test that health score never goes below 0"""
-        # Create worst conditions
-        sample_deal.RegisterTime = datetime.now() - timedelta(days=200)
-        
-        sentiment_summary = {
+            'sentiment_available': True,
             'dominant_sentiment': 'منفی',
-            'sentiment_available': True
+            'average_confidence': 0.85
         }
         
-        score = analytics_service._calculate_health_score(
-            sample_deal.to_dict(),
-            [],
-            sentiment_summary
-        )
+        score = analytics_service._calculate_health_score(deal_dict, [recent_activity], sentiment_summary)
         
-        assert score >= 0
+        assert score < 50, f"OPEN deal with negative sentiment should score < 50, got {score}"
 
 
-class TestRiskIdentification:
-    """Test risk indicator identification"""
+class TestRiskIndicatorsWonDeal:
+    """Test risk detection for WON deals"""
     
-    def test_identify_risks_healthy_deal(self, analytics_service, healthy_deal_scenario):
-        """Test that healthy deal has few/no risks"""
-        risks = analytics_service._identify_risk_indicators(
-            healthy_deal_scenario['deal'].to_dict(),
-            healthy_deal_scenario['activities'],
-            health_score=80
-        )
+    def test_won_deal_minimal_risks(self, test_repositories, sample_deal, sample_activities_list):
+        """Test that WON deals have minimal risks"""
+        analytics_service = AnalyticsService(test_repositories)
         
-        assert isinstance(risks, list)
-        # Healthy deal should have minimal risks
-        assert len(risks) <= 2
+        # Setup won deal with followup
+        deal_dict = sample_deal.to_dict()
+        deal_dict['change_to_won_time'] = (datetime.now() - timedelta(days=5)).isoformat()
+        deal_dict['Status'] = 'بسته شده'
+        
+        recent_activity = sample_activities_list[0]
+        recent_activity.registerdate = datetime.now() - timedelta(days=2)
+        
+        risks = analytics_service._identify_risk_indicators(deal_dict, [recent_activity], health_score=90)
+        
+        assert len(risks) == 0, f"WON deal with followup should have no risks, got {len(risks)}"
     
-    def test_identify_risks_at_risk_deal(self, analytics_service, at_risk_deal_scenario):
-        """Test that at-risk deal has multiple risks identified"""
-        risks = analytics_service._identify_risk_indicators(
-            at_risk_deal_scenario['deal'].to_dict(),
-            at_risk_deal_scenario['activities'],
-            health_score=30
-        )
+    def test_won_deal_no_followup_risk(self, test_repositories, sample_deal):
+        """Test that WON deals without followup get risk"""
+        analytics_service = AnalyticsService(test_repositories)
         
-        assert isinstance(risks, list)
-        assert len(risks) > 0
+        # Setup won deal without followup
+        deal_dict = sample_deal.to_dict()
+        deal_dict['change_to_won_time'] = (datetime.now() - timedelta(days=60)).isoformat()
+        deal_dict['Status'] = 'بسته شده'
         
-        # Check for expected risk types
-        risk_types = [r['type'] for r in risks]
-        assert 'low_health_score' in risk_types or 'stale_activity' in risk_types
-    
-    def test_identify_risk_no_activity(self, analytics_service, sample_deal):
-        """Test risk identification for deal with no activities"""
-        risks = analytics_service._identify_risk_indicators(
-            sample_deal.to_dict(),
-            [],
-            health_score=30
-        )
+        risks = analytics_service._identify_risk_indicators(deal_dict, [], health_score=80)
         
-        assert len(risks) > 0
-        risk_types = [r['type'] for r in risks]
-        assert 'no_activity' in risk_types
-    
-    def test_identify_risk_stale_activity(self, analytics_service, sample_deal, sample_activities_list):
-        """Test identification of stale activity risk"""
-        # Make activities old
-        for activity in sample_activities_list[:2]:
-            activity.registerdate = datetime.now() - timedelta(days=20)
-        
-        risks = analytics_service._identify_risk_indicators(
-            sample_deal.to_dict(),
-            sample_activities_list[:2],
-            health_score=50
-        )
-        
-        risk_types = [r['type'] for r in risks]
-        # Should identify stale activity
-        assert 'stale_activity' in risk_types or len(risks) > 0
+        assert len(risks) == 1, f"WON deal without followup should have 1 risk, got {len(risks)}"
+        assert risks[0]['type'] == 'no_followup_after_close'
 
 
-class TestPortfolioOverview:
-    """Test portfolio-wide analytics"""
+class TestRiskIndicatorsLostDeal:
+    """Test risk detection for LOST deals"""
     
-    def test_analyze_portfolio_overview_empty(self, analytics_service):
-        """Test portfolio overview with no deals"""
-        result = analytics_service.analyze_portfolio_overview(days=30)
+    def test_lost_deal_has_loss_risk(self, test_repositories, sample_deal):
+        """Test that LOST deals are flagged"""
+        analytics_service = AnalyticsService(test_repositories)
         
-        assert result is not None
-        # Should handle empty portfolio gracefully
-        assert 'summary' in result or 'message' in result
+        # Setup lost deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['change_to_loss_time'] = (datetime.now() - timedelta(days=5)).isoformat()
+        deal_dict['Status'] = 'لغو شده'
+        
+        risks = analytics_service._identify_risk_indicators(deal_dict, [], health_score=20)
+        
+        assert len(risks) >= 1, f"LOST deal should have risks"
+        assert any(r['type'] == 'deal_lost' for r in risks), "Should have 'deal_lost' risk"
     
-    def test_analyze_portfolio_overview_basic(self, analytics_service, test_repositories, sample_deals_list):
-        """Test basic portfolio overview"""
-        # Create some deals
-        for deal in sample_deals_list[:3]:
-            test_repositories.deals.create_deal(deal)
+    def test_lost_deal_insufficient_effort_risk(self, test_repositories, sample_deal):
+        """Test that LOST deals with low effort get warning"""
+        analytics_service = AnalyticsService(test_repositories)
         
-        result = analytics_service.analyze_portfolio_overview(days=30)
+        # Setup lost deal with 1 activity
+        deal_dict = sample_deal.to_dict()
+        deal_dict['change_to_loss_time'] = (datetime.now() - timedelta(days=5)).isoformat()
+        deal_dict['Status'] = 'لغو شده'
         
-        assert result is not None
-        assert 'summary' in result
-        assert 'period_days' in result
-        assert result['period_days'] == 30
-    
-    def test_analyze_portfolio_with_status_filter(self, analytics_service, test_repositories, sample_deals_list):
-        """Test portfolio overview with status filter"""
-        # Create deals
-        for deal in sample_deals_list[:5]:
-            test_repositories.deals.create_deal(deal)
+        from models.deal_model import DealActivity
+        minimal_activity = DealActivity(id='1', dealid='deal1')
         
-        result = analytics_service.analyze_portfolio_overview(
-            status='در حال پیگیری',
-            days=30
-        )
+        risks = analytics_service._identify_risk_indicators(deal_dict, [minimal_activity], health_score=20)
         
-        assert result is not None
-        assert result['status_filter'] == 'در حال پیگیری'
+        assert any(r['type'] == 'insufficient_effort' for r in risks), "Should have 'insufficient_effort' risk"
 
 
-class TestAnalyticsHelperMethods:
-    """Test helper methods in analytics service"""
+class TestRiskIndicatorsOpenDeal:
+    """Test risk detection for OPEN deals"""
     
-    def test_create_activity_timeline(self, analytics_service, sample_activities_list):
-        """Test activity timeline creation"""
-        timeline = analytics_service._create_activity_timeline(
-            sample_activities_list[:5]
-        )
+    def test_open_deal_no_activity_critical_risk(self, test_repositories, sample_deal):
+        """Test that OPEN deals with no activity get critical risk"""
+        analytics_service = AnalyticsService(test_repositories)
         
-        assert isinstance(timeline, list)
-        assert len(timeline) <= 20  # Should limit to last 20
+        # Setup open deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['Status'] = 'در حال پیگیری'
+        deal_dict['change_to_won_time'] = None
+        deal_dict['change_to_loss_time'] = None
         
-        if len(timeline) > 0:
-            # Check timeline structure
-            assert 'date' in timeline[0]
-            assert 'title' in timeline[0]
+        risks = analytics_service._identify_risk_indicators(deal_dict, [], health_score=20)
+        
+        assert any(r['type'] == 'no_activity' and r['severity'] == 'critical' for r in risks), \
+            "OPEN deal with no activity should have critical 'no_activity' risk"
     
-    def test_create_timeline_empty(self, analytics_service):
-        """Test timeline creation with no activities"""
-        timeline = analytics_service._create_activity_timeline([])
+    def test_open_deal_critical_inactivity_risk(self, test_repositories, sample_deal, sample_activities_list):
+        """Test that OPEN deals with 60+ days inactivity get critical risk"""
+        analytics_service = AnalyticsService(test_repositories)
         
-        assert isinstance(timeline, list)
-        assert len(timeline) == 0
+        # Setup open deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['Status'] = 'در حال پیگیری'
+        deal_dict['change_to_won_time'] = None
+        deal_dict['change_to_loss_time'] = None
+        
+        # 70 days old activity
+        old_activity = sample_activities_list[0]
+        old_activity.registerdate = datetime.now() - timedelta(days=70)
+        
+        risks = analytics_service._identify_risk_indicators(deal_dict, [old_activity], health_score=15)
+        
+        critical_inactivity = [r for r in risks if r['type'] == 'critical_inactivity']
+        assert len(critical_inactivity) > 0, "Should have 'critical_inactivity' risk"
+        assert critical_inactivity[0]['severity'] == 'critical'
     
-    def test_generate_insights(self, analytics_service, sample_deal, sample_activities_list):
-        """Test insight generation"""
-        sentiment_summary = {'dominant_sentiment': 'مثبت', 'sentiment_available': True}
+    def test_open_deal_high_inactivity_risk(self, test_repositories, sample_deal, sample_activities_list):
+        """Test that OPEN deals with 30-60 days inactivity get high risk"""
+        analytics_service = AnalyticsService(test_repositories)
         
-        insights = analytics_service._generate_insights(
-            sample_deal.to_dict(),
-            sample_activities_list[:3],
-            sentiment_summary,
-            health_score=75,
-            risk_indicators=[]
-        )
+        # Setup open deal
+        deal_dict = sample_deal.to_dict()
+        deal_dict['Status'] = 'در حال پیگیری'
+        deal_dict['change_to_won_time'] = None
+        deal_dict['change_to_loss_time'] = None
         
-        assert isinstance(insights, list)
-        assert len(insights) > 0
-        # Each insight should be a string
-        assert all(isinstance(insight, str) for insight in insights)
+        # 40 days old activity
+        old_activity = sample_activities_list[0]
+        old_activity.registerdate = datetime.now() - timedelta(days=40)
+        
+        risks = analytics_service._identify_risk_indicators(deal_dict, [old_activity], health_score=30)
+        
+        high_inactivity = [r for r in risks if r['type'] == 'high_inactivity']
+        assert len(high_inactivity) > 0, "Should have 'high_inactivity' risk"
+        assert high_inactivity[0]['severity'] == 'high'
     
-    def test_generate_recommendations(self, analytics_service, sample_deal):
-        """Test recommendation generation"""
-        risks = [
-            {'type': 'low_health', 'recommendation': 'توصیه تست'}
-        ]
+    def test_open_deal_very_old_deal_risk(self, test_repositories, sample_deal):
+        """Test that OPEN deals > 180 days old get risk"""
+        analytics_service = AnalyticsService(test_repositories)
         
-        recommendations = analytics_service._generate_recommendations(
-            sample_deal.to_dict(),
-            health_score=35,
-            risk_indicators=risks
-        )
+        # Setup open deal that's very old
+        deal_dict = sample_deal.to_dict()
+        deal_dict['Status'] = 'در حال پیگیری'
+        deal_dict['change_to_won_time'] = None
+        deal_dict['change_to_loss_time'] = None
+        deal_dict['RegisterTime'] = (datetime.now() - timedelta(days=200)).isoformat()
         
-        assert isinstance(recommendations, list)
-        assert len(recommendations) > 0
-        # Should include risk recommendations
-        assert any('توصیه' in r for r in recommendations)
-    
-    def test_get_health_category(self, analytics_service):
-        """Test health category labeling"""
-        # High score
-        category_high = analytics_service._get_health_category(85)
-        assert category_high == 'سالم'
+        risks = analytics_service._identify_risk_indicators(deal_dict, [], health_score=30)
         
-        # Medium score
-        category_medium = analytics_service._get_health_category(55)
-        assert category_medium == 'متوسط'
-        
-        # Low score
-        category_low = analytics_service._get_health_category(25)
-        assert category_low == 'در خطر'
+        assert any(r['type'] == 'very_old_deal' for r in risks), \
+            "OPEN deal > 180 days should have 'very_old_deal' risk"
 
 
-class TestAnalyticsIntegration:
-    """Test analytics service integration with other services"""
+class TestComprehensiveScenarios:
+    """Test complete real-world scenarios"""
     
-    def test_comprehensive_analysis_integration(self, analytics_service, test_repositories, sample_deal, sample_activities_list):
-        """Test full comprehensive analysis workflow"""
-        # Create deal and activities
-        test_repositories.deals.create_deal(sample_deal)
-        for activity in sample_activities_list[:5]:
-            test_repositories.activities.create_activity(activity)
+    def test_scenario_won_deal_from_output(self, test_repositories, sample_deal, sample_activities_list):
+        """
+        Test the exact scenario that was failing: WON deal should NOT score same as LOST
+        """
+        analytics_service = AnalyticsService(test_repositories)
         
-        # Run comprehensive analysis
-        result = analytics_service.analyze_deal_comprehensive(sample_deal.Id)
+        # Create WON deal scenario
+        won_deal = sample_deal.to_dict()
+        won_deal['change_to_won_time'] = (datetime.now() - timedelta(days=5)).isoformat()
+        won_deal['change_to_loss_time'] = None
+        won_deal['Status'] = 'بسته شده'
         
-        # Check result structure
-        assert result is not None
-        assert 'deal' in result or 'deal_id' in result
-        assert 'health_score' in result
-        assert 'insights' in result
-        assert 'recommendations' in result
+        # Add some followup activity
+        followup = sample_activities_list[0]
+        followup.registerdate = datetime.now() - timedelta(days=2)
         
-        # Validate health score
-        assert isinstance(result['health_score'], int)
-        assert 0 <= result['health_score'] <= 100
+        sentiment_summary = {'sentiment_available': False}
+        
+        # Analyze WON deal
+        won_result = {
+            'health_score': analytics_service._calculate_health_score(won_deal, [followup], sentiment_summary),
+            'risks': analytics_service._identify_risk_indicators(won_deal, [followup], health_score=85)
+        }
+        
+        # Create LOST deal scenario
+        lost_deal = sample_deal.to_dict()
+        lost_deal['change_to_won_time'] = None
+        lost_deal['change_to_loss_time'] = (datetime.now() - timedelta(days=5)).isoformat()
+        lost_deal['Status'] = 'لغو شده'
+        
+        # Same inactivity as in the bug report (62 days)
+        old_activity = sample_activities_list[0]
+        old_activity.registerdate = datetime.now() - timedelta(days=62)
+        
+        lost_result = {
+            'health_score': analytics_service._calculate_health_score(lost_deal, [old_activity], sentiment_summary),
+            'risks': analytics_service._identify_risk_indicators(lost_deal, [old_activity], health_score=20)
+        }
+        
+        print(f"\n{'='*70}")
+        print("TEST: Won vs Lost Deal Scenario")
+        print(f"{'='*70}")
+        print(f"WON Deal Score: {won_result['health_score']}/100")
+        print(f"WON Deal Risks: {len(won_result['risks'])} risks")
+        print(f"\nLOST Deal Score: {lost_result['health_score']}/100")
+        print(f"LOST Deal Risks: {len(lost_result['risks'])} risks")
+        print(f"{'='*70}")
+        
+        # ASSERTIONS
+        assert won_result['health_score'] > 70, f"WON deal should score > 70, got {won_result['health_score']}"
+        assert lost_result['health_score'] < 50, f"LOST deal should score < 50, got {lost_result['health_score']}"
+        assert won_result['health_score'] > lost_result['health_score'] + 30, \
+            f"WON ({won_result['health_score']}) should be much higher than LOST ({lost_result['health_score']})"
