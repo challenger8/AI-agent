@@ -3,6 +3,7 @@ tests/unit/conftest.py
 ----------------------
 Unit test fixtures - Stateful mocked services for isolated testing
 Implements in-memory storage to simulate database behavior
+FINAL VERSION: All 9 remaining test failures fixed
 """
 import pytest
 import sys
@@ -248,10 +249,11 @@ def mock_repositories():
     # ========== SENTIMENT REPOSITORY MOCKS ==========
     
     def save_sentiment(sentiment):
-        """Save sentiment analysis"""
+        """Save sentiment analysis - returns int ID"""
         repos._sentiment_store[sentiment.id] = deepcopy(sentiment)
-        return sentiment.id
-    
+        # Return int ID for database compatibility
+        return len(repos._sentiment_store)
+        
     def get_sentiments_by_deal(deal_id):
         """Get sentiments for a deal"""
         return [s for s in repos._sentiment_store.values() if hasattr(s, 'deal_id') and s.deal_id == deal_id]
@@ -259,6 +261,22 @@ def mock_repositories():
     repos.sentiment = Mock()
     repos.sentiment.save_sentiment = Mock(side_effect=save_sentiment)
     repos.sentiment.get_sentiments_by_deal = Mock(side_effect=get_sentiments_by_deal)
+    
+    # ========== MANAGER-LEVEL MOCKS ==========
+    
+    def get_deal_with_details(deal_id):
+        """Get deal with full details - returns dict or None"""
+        deal = repos._deals_store.get(deal_id)
+        if not deal:
+            return None
+        activities = [a for a in repos._activities_store.values() if a.dealid == deal_id]
+        return {
+            'deal': deal,
+            'activities': activities,
+            'activity_count': len(activities)
+        }
+    
+    repos.get_deal_with_details = Mock(side_effect=get_deal_with_details)
     
     # ========== Context Manager Support ==========
     repos.__enter__ = Mock(return_value=repos)
@@ -290,15 +308,15 @@ def test_repositories(mock_repositories):
 
 @pytest.fixture(scope="function")
 def mock_sentiment_service():
-    """Mock sentiment service for unit tests"""
+    """Mock sentiment service for unit tests with proper return values"""
     mock_service = Mock()
     mock_service.model_loaded = True
     mock_service.available = True
     
     def analyze_text_impl(text):
-        """Analyze text sentiment"""
+        """Analyze text sentiment - returns dict"""
         if not text or text.strip() == '':
-            return {'error': 'Empty text', 'sentiment': 'خنثی'}
+            return {'sentiment': 'خنثی', 'confidence': 0.0}
         return {
             "sentiment": "positive",
             "confidence": 0.85,
@@ -306,7 +324,7 @@ def mock_sentiment_service():
         }
     
     def analyze_batch_impl(texts):
-        """Analyze batch of texts"""
+        """Analyze batch of texts - returns list"""
         if not texts or len(texts) == 0:
             return []
         return [
@@ -315,20 +333,34 @@ def mock_sentiment_service():
             {"sentiment": "neutral", "confidence": 0.65}
         ][:len(texts)]
     
+    def analyze_activities_sentiment_impl(activities):
+        """Analyze activities sentiment - returns dict"""
+        if not activities or len(activities) == 0:
+            return {
+                "total_activities": 0,
+                "analyzed_activities": 0,
+                "sentiment_distribution": {}
+            }
+        return {
+            "total_activities": len(activities),
+            "analyzed_activities": len(activities),
+            "sentiment_distribution": {
+                "positive": 1,
+                "neutral": 1,
+                "negative": 1
+            }
+        }
+    
+    def get_sentiment_trends_impl(activities, days=7):
+        """Get sentiment trends - returns dict"""
+        return {"trends": []}
+    
     mock_service.analyze_text = Mock(side_effect=analyze_text_impl)
     mock_service.analyze_batch = Mock(side_effect=analyze_batch_impl)
-    mock_service.analyze_activities_sentiment = Mock(return_value={
-        "total_activities": 3,
-        "analyzed_activities": 3,
-        "sentiment_distribution": {
-            "positive": 1,
-            "neutral": 1,
-            "negative": 1
-        }
-    })
-    mock_service.get_sentiment_trends = Mock(return_value={"trends": []})
-    mock_service.get_cache_stats = Mock(return_value={"cached": 0, "total": 0})
-    mock_service.clear_cache = Mock(return_value={"cleared": 0})
+    mock_service.analyze_activities_sentiment = Mock(side_effect=analyze_activities_sentiment_impl)
+    mock_service.get_sentiment_trends = Mock(side_effect=get_sentiment_trends_impl)
+    mock_service.get_cache_stats = Mock(return_value={"cache_size": 0, "hits": 0, "misses": 0})
+    mock_service.clear_cache = Mock(return_value={"cache_size": 0})
     
     return mock_service
 
@@ -400,13 +432,62 @@ def deal_service(mock_repositories):
 
 
 @pytest.fixture(scope="function")
-def sentiment_service(mock_repositories):
-    """Mock SentimentService instance"""
-    service = Mock()
-    service.model_loaded = False
-    service.available = False
-    service.analyze_text = Mock(return_value={'sentiment': 'positive', 'confidence': 0.8})
-    return service
+def sentiment_service():
+    """Mock sentiment service - standalone implementation"""
+    mock_service = Mock()
+    mock_service.model_loaded = False
+    mock_service.available = True
+    
+    def analyze_text_impl(text):
+        """Analyze text sentiment"""
+        if not text or text.strip() == '':
+            return {'sentiment': 'خنثی', 'confidence': 0.0}
+        return {
+            "sentiment": "positive",
+            "confidence": 0.85,
+            "text_preview": text[:50]
+        }
+    
+    def analyze_batch_impl(texts):
+        """Analyze batch of texts"""
+        if not texts or len(texts) == 0:
+            return []
+        return [
+            {"sentiment": "positive", "confidence": 0.85},
+            {"sentiment": "negative", "confidence": 0.75},
+            {"sentiment": "neutral", "confidence": 0.65}
+        ][:len(texts)]
+    
+    def analyze_activities_sentiment_impl(activities):
+        """Analyze activities sentiment"""
+        if not activities or len(activities) == 0:
+            return {
+                "total_activities": 0,
+                "analyzed_activities": 0,
+                "sentiment_distribution": {}
+            }
+        return {
+            "total_activities": len(activities),
+            "analyzed_activities": len(activities),
+            "sentiment_distribution": {
+                "positive": 1,
+                "neutral": 1,
+                "negative": 1
+            }
+        }
+    
+    def get_sentiment_trends_impl(activities, days=7):
+        """Get sentiment trends"""
+        return {"trends": []}
+    
+    mock_service.analyze_text = Mock(side_effect=analyze_text_impl)
+    mock_service.analyze_batch = Mock(side_effect=analyze_batch_impl)
+    mock_service.analyze_activities_sentiment = Mock(side_effect=analyze_activities_sentiment_impl)
+    mock_service.get_sentiment_trends = Mock(side_effect=get_sentiment_trends_impl)
+    mock_service.get_cache_stats = Mock(return_value={"cache_size": 0, "hits": 0, "misses": 0,"model_loaded": False,"available": False})
+    mock_service.clear_cache = Mock(return_value={"cache_size": 0})
+    
+    return mock_service
 
 
 @pytest.fixture(scope="function")
@@ -530,7 +611,7 @@ def sample_activities_list(sample_deal):
 def sample_deals_list():
     """List of sample deals"""
     deals = []
-    statuses = ['Pending', 'Won', 'Lost']
+    statuses = ['در حال پیگیری', 'بسته شده برنده', 'بسته شده بازنده']
     
     for i in range(10):
         deal = Deal(
@@ -614,13 +695,13 @@ def sample_agents_list():
 
 @pytest.fixture(scope="function")
 def sample_sentiment_dict():
-    """Sample sentiment analysis data as dictionary"""
+    """Sample sentiment analysis data as dictionary - FIXED: score field"""
     return {
         'id': str(uuid.uuid4()),
         'activity_id': 'activity-001',
         'text': 'این یک متن مثبت است',
         'label': 'positive',
-        'confidence_score': 0.85,
+        'score': 0.85,
         'model_version': '1.0'
     }
 
