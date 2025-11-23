@@ -119,23 +119,30 @@ AI-agent/
 - [x] Integration tests for MoE system
 
 ### Test Results
-- 218 tests passed
-- 22 tests skipped (Gradio not installed)
+- 269 tests passed
+- 55 tests skipped (optional dependencies not installed)
 - 7 tests expected failures (no PostgreSQL in test environment)
 
+### High Priority Features (Completed)
+- [x] Embedding-based routing with TF-IDF fallback (`services/moe/embedding_service.py`)
+- [x] Expert caching layer with TTL and LRU eviction (`services/moe/cache_service.py`)
+- [x] Performance monitoring dashboard (`services/moe/monitoring.py`)
+- [x] API documentation in OpenAPI format (`docs/api_documentation.py`)
+
+### Medium Priority Features (Completed)
+- [x] Expanded Persian language patterns (50+ new keywords)
+- [x] Expert feedback loop for learning (`services/moe/feedback_loop.py`)
+- [x] Batch processing for multiple queries (parallel/sequential)
+- [x] CLI interface for MoE system (`cli/moe_cli.py`)
+
+### Additional Tests
+- [x] Unit tests for embedding service
+- [x] Unit tests for cache service
+- [x] Unit tests for monitoring
+- [x] Unit tests for feedback loop
+- [x] Unit tests for batch processing
+
 ## To-Do Tasks
-
-### High Priority
-- [ ] Add embedding-based routing strategy
-- [ ] Implement expert caching layer
-- [ ] Add performance monitoring dashboard
-- [ ] Create API documentation
-
-### Medium Priority
-- [ ] Add more Persian language patterns to router
-- [ ] Implement expert feedback loop for learning
-- [ ] Add batch processing for multiple queries
-- [ ] Create CLI interface for MoE system
 
 ### Low Priority
 - [ ] Add visualization for expert contributions
