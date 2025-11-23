@@ -55,23 +55,98 @@ class MoESettings:
     ROUTING_KEYWORDS = {
         'deal_analysis': [
             'deal', 'معامله', 'قرارداد', 'health', 'سلامت', 'score', 'امتیاز',
-            'analyze', 'تحلیل', 'performance', 'عملکرد', 'status', 'وضعیت'
+            'analyze', 'تحلیل', 'performance', 'عملکرد', 'status', 'وضعیت',
+            'pipeline', 'پایپلاین', 'conversion', 'تبدیل', 'stage', 'مرحله',
+            'value', 'ارزش', 'revenue', 'درآمد', 'forecast', 'پیش‌بینی',
+            'opportunity', 'فرصت', 'prospect', 'مشتری بالقوه', 'lead', 'سرنخ',
+            'win', 'برد', 'loss', 'باخت', 'close', 'بستن', 'negotiate', 'مذاکره',
+            'contract', 'قرارداد', 'proposal', 'پیشنهاد', 'quote', 'قیمت‌گذاری',
+            'دیل', 'معاملات', 'قراردادها', 'فروش', 'خرید'
         ],
         'sentiment': [
             'sentiment', 'احساس', 'feeling', 'emotion', 'حس', 'mood', 'خلق',
-            'positive', 'مثبت', 'negative', 'منفی', 'neutral', 'خنثی', 'opinion', 'نظر'
+            'positive', 'مثبت', 'negative', 'منفی', 'neutral', 'خنثی', 'opinion', 'نظر',
+            'satisfaction', 'رضایت', 'happy', 'خوشحال', 'angry', 'عصبانی',
+            'frustrated', 'ناامید', 'pleased', 'راضی', 'disappointed', 'ناراضی',
+            'tone', 'لحن', 'attitude', 'نگرش', 'perception', 'درک', 'view', 'دیدگاه',
+            'feedback', 'بازخورد', 'review', 'بررسی', 'comment', 'نظر',
+            'احساسات', 'عواطف', 'خلق‌وخو', 'روحیه', 'برداشت'
         ],
         'activity': [
             'activity', 'فعالیت', 'timeline', 'جدول زمانی', 'history', 'تاریخچه',
-            'recent', 'اخیر', 'last', 'آخرین', 'trend', 'روند', 'summary', 'خلاصه'
+            'recent', 'اخیر', 'last', 'آخرین', 'trend', 'روند', 'summary', 'خلاصه',
+            'action', 'اقدام', 'event', 'رویداد', 'log', 'گزارش', 'record', 'ثبت',
+            'track', 'پیگیری', 'update', 'به‌روزرسانی', 'change', 'تغییر',
+            'meeting', 'جلسه', 'call', 'تماس', 'email', 'ایمیل', 'task', 'وظیفه',
+            'note', 'یادداشت', 'interaction', 'تعامل', 'communication', 'ارتباط',
+            'فعالیت‌ها', 'رویدادها', 'تماس‌ها', 'جلسات', 'اقدامات'
         ],
         'risk_assessment': [
             'risk', 'ریسک', 'danger', 'خطر', 'warning', 'هشدار', 'problem', 'مشکل',
-            'issue', 'concern', 'نگرانی', 'threat', 'تهدید', 'vulnerability', 'آسیب‌پذیری'
+            'issue', 'concern', 'نگرانی', 'threat', 'تهدید', 'vulnerability', 'آسیب‌پذیری',
+            'alert', 'اخطار', 'critical', 'بحرانی', 'urgent', 'فوری', 'severe', 'شدید',
+            'exposure', 'در معرض', 'potential', 'بالقوه', 'likelihood', 'احتمال',
+            'impact', 'تأثیر', 'mitigation', 'کاهش', 'assessment', 'ارزیابی',
+            'blocker', 'مانع', 'obstacle', 'موانع', 'challenge', 'چالش',
+            'ریسک‌ها', 'خطرات', 'مشکلات', 'موانع', 'چالش‌ها'
         ],
         'search': [
             'find', 'پیدا', 'search', 'جستجو', 'look', 'گشتن', 'query', 'پرس‌وجو',
-            'where', 'کجا', 'which', 'کدام', 'related', 'مرتبط', 'similar', 'مشابه'
+            'where', 'کجا', 'which', 'کدام', 'related', 'مرتبط', 'similar', 'مشابه',
+            'retrieve', 'بازیابی', 'locate', 'یافتن', 'discover', 'کشف', 'match', 'تطبیق',
+            'filter', 'فیلتر', 'list', 'لیست', 'show', 'نمایش', 'display', 'نشان',
+            'get', 'گرفتن', 'fetch', 'واکشی', 'lookup', 'جستجو کردن',
+            'جست‌وجو', 'پیداکردن', 'یافتن', 'نشان‌دادن', 'لیست‌کردن'
+        ]
+    }
+
+    # Extended regex patterns for Persian/English (used in hybrid routing)
+    ROUTING_PATTERNS = {
+        'deal_analysis': [
+            r'\bdeal\s+\d+\b',
+            r'\banalyze\s+deal\b',
+            r'\bdeal\s+health\b',
+            r'\bدیل\s+\d+\b',
+            r'\bتحلیل\s+معامله\b',
+            r'\bسلامت\s+معامله\b',
+            r'\bامتیاز\s+معامله\b',
+            r'\bوضعیت\s+قرارداد\b'
+        ],
+        'sentiment': [
+            r'\bsentiment\b',
+            r'\bfeeling\b',
+            r'\bاحساس\b',
+            r'\bنظر\b',
+            r'\bتحلیل\s+احساسات\b',
+            r'\bبررسی\s+نظرات\b',
+            r'\bلحن\s+پیام\b'
+        ],
+        'risk_assessment': [
+            r'\brisk\b',
+            r'\bwarning\b',
+            r'\bریسک\b',
+            r'\bخطر\b',
+            r'\bارزیابی\s+ریسک\b',
+            r'\bتحلیل\s+خطر\b',
+            r'\bمشکلات\s+احتمالی\b'
+        ],
+        'activity': [
+            r'\bactivity\b',
+            r'\btimeline\b',
+            r'\bفعالیت\b',
+            r'\bتاریخچه\b',
+            r'\bآخرین\s+فعالیت\b',
+            r'\bگزارش\s+فعالیت\b',
+            r'\bلیست\s+تماس\b'
+        ],
+        'search': [
+            r'\bfind\b',
+            r'\bsearch\b',
+            r'\bجستجو\b',
+            r'\bپیدا\b',
+            r'\bجستجوی\s+\w+\b',
+            r'\bپیدا\s+کن\b',
+            r'\bنشان\s+بده\b'
         ]
     }
 

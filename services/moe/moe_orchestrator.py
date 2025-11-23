@@ -349,3 +349,106 @@ class MoEOrchestrator:
     def get_settings(self) -> Dict[str, Any]:
         """Get current MoE settings"""
         return MoESettings.to_dict()
+
+    async def process_batch(
+        self,
+        queries: List[Dict[str, Any]],
+        parallel: bool = True
+    ) -> List[EnsembleResult]:
+        """
+        Process multiple queries in batch
+
+        Args:
+            queries: List of query dicts with 'query' and optional 'context'
+            parallel: Whether to process queries in parallel
+
+        Returns:
+            List of EnsembleResults
+        """
+        import time
+        start_time = time.time()
+
+        self.logger.info(f"Processing batch of {len(queries)} queries (parallel={parallel})")
+
+        if parallel:
+            results = await self._process_batch_parallel(queries)
+        else:
+            results = await self._process_batch_sequential(queries)
+
+        total_time = (time.time() - start_time) * 1000
+        avg_time = total_time / len(results) if results else 0
+        self.logger.info(
+            f"Batch processing completed: {len(results)} queries in {total_time:.2f}ms "
+            f"(avg {avg_time:.2f}ms per query)"
+        )
+
+        return results
+
+    async def _process_batch_parallel(
+        self,
+        queries: List[Dict[str, Any]]
+    ) -> List[EnsembleResult]:
+        """Process queries in parallel"""
+        tasks = []
+
+        for query_data in queries:
+            query = query_data.get('query', '')
+            context = query_data.get('context', {})
+            task = asyncio.create_task(self.process(query, context))
+            tasks.append(task)
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Convert exceptions to error results
+        final_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                query = queries[i].get('query', '')
+                final_results.append(
+                    EnsembleResult(
+                        query=query,
+                        expert_results=[],
+                        combined_data={'error': str(result)},
+                        combined_confidence=0.0,
+                        strategy_used='none',
+                        primary_expert='none',
+                        reasoning=f"Batch processing error: {str(result)}",
+                        execution_time_ms=0.0
+                    )
+                )
+            else:
+                final_results.append(result)
+
+        return final_results
+
+    async def _process_batch_sequential(
+        self,
+        queries: List[Dict[str, Any]]
+    ) -> List[EnsembleResult]:
+        """Process queries sequentially"""
+        results = []
+
+        for query_data in queries:
+            query = query_data.get('query', '')
+            context = query_data.get('context', {})
+            result = await self.process(query, context)
+            results.append(result)
+
+        return results
+
+    def process_batch_sync(
+        self,
+        queries: List[Dict[str, Any]],
+        parallel: bool = True
+    ) -> List[EnsembleResult]:
+        """
+        Synchronous version of process_batch
+
+        Args:
+            queries: List of query dicts
+            parallel: Whether to process in parallel
+
+        Returns:
+            List of EnsembleResults
+        """
+        return asyncio.run(self.process_batch(queries, parallel))

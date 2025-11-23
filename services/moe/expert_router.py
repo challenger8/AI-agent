@@ -148,17 +148,48 @@ class ExpertRouter:
 
     def _route_embedding_based(self, query: str, context: Dict[str, Any]) -> RoutingDecision:
         """Embedding-based routing using semantic similarity"""
-        confidence_scores = {}
+        if not self.embedding_service:
+            # No embedding service, fall back to rule-based
+            self.logger.warning("No embedding service available, falling back to rule-based routing")
+            return self._route_rule_based(query, context)
 
-        if self.embedding_service:
-            # Use embeddings for semantic matching
-            # This would compare query embeddings to expert prototype embeddings
-            # For now, fall back to rule-based
-            self.logger.warning("Embedding-based routing not fully implemented, using rule-based fallback")
-            return self._route_rule_based(query, context)
-        else:
-            # No embedding service, use rule-based
-            return self._route_rule_based(query, context)
+        # Get semantic similarity scores from embedding service
+        confidence_scores = self.embedding_service.get_expert_similarities(query)
+
+        # Apply context boosting
+        if context:
+            if 'expert_hint' in context:
+                hint = context['expert_hint']
+                if hint in confidence_scores:
+                    confidence_scores[hint] = min(confidence_scores[hint] + 0.2, 1.0)
+
+            if 'entity_type' in context:
+                entity = context['entity_type']
+                if entity == 'deal' and 'deal_analysis' in confidence_scores:
+                    confidence_scores['deal_analysis'] = min(
+                        confidence_scores['deal_analysis'] + 0.15, 1.0
+                    )
+                elif entity == 'activity' and 'activity' in confidence_scores:
+                    confidence_scores['activity'] = min(
+                        confidence_scores['activity'] + 0.15, 1.0
+                    )
+
+        # Select experts above threshold
+        selected_experts, query_type = self._select_experts(confidence_scores)
+
+        reasoning = (
+            f"Embedding-based routing selected {len(selected_experts)} expert(s) "
+            f"based on semantic similarity"
+        )
+
+        return RoutingDecision(
+            query=query,
+            selected_experts=selected_experts,
+            confidence_scores=confidence_scores,
+            query_type=query_type,
+            reasoning=reasoning,
+            metadata={'strategy': 'embedding_based'}
+        )
 
     def _route_hybrid(self, query: str, context: Dict[str, Any]) -> RoutingDecision:
         """Hybrid routing combining rules and context"""
@@ -207,32 +238,16 @@ class ExpertRouter:
                         confidence_scores[last_expert] + 0.1, 1.0
                     )
 
-        # Step 3: Pattern-based detection
-        patterns = {
-            'deal_analysis': [
-                r'\bdeal\s+\d+\b',
-                r'\banalyze\s+deal\b',
-                r'\bدیل\s+\d+\b'
-            ],
-            'sentiment': [
-                r'\bsentiment\b',
-                r'\bfeeling\b',
-                r'\bاحساس\b',
-                r'\bنظر\b'
-            ],
-            'risk_assessment': [
-                r'\brisk\b',
-                r'\bwarning\b',
-                r'\bریسک\b',
-                r'\bخطر\b'
-            ],
-            'search': [
-                r'\bfind\b',
-                r'\bsearch\b',
-                r'\bجستجو\b',
-                r'\bپیدا\b'
-            ]
-        }
+        # Step 3: Pattern-based detection using extended patterns from settings
+        patterns = getattr(MoESettings, 'ROUTING_PATTERNS', {})
+        if not patterns:
+            # Fallback patterns if not defined in settings
+            patterns = {
+                'deal_analysis': [r'\bdeal\s+\d+\b', r'\banalyze\s+deal\b'],
+                'sentiment': [r'\bsentiment\b', r'\bfeeling\b'],
+                'risk_assessment': [r'\brisk\b', r'\bwarning\b'],
+                'search': [r'\bfind\b', r'\bsearch\b']
+            }
 
         for expert_type, expert_patterns in patterns.items():
             for pattern in expert_patterns:
@@ -240,6 +255,19 @@ class ExpertRouter:
                     confidence_scores[expert_type] = min(
                         confidence_scores.get(expert_type, 0) + 0.25, 1.0
                     )
+
+        # Step 4: Embedding-based boost (if available)
+        if self.embedding_service:
+            try:
+                semantic_scores = self.embedding_service.get_expert_similarities(query)
+                for expert_type, semantic_score in semantic_scores.items():
+                    # Blend rule-based and semantic scores (60% rules, 40% semantic)
+                    if expert_type in confidence_scores:
+                        blended = (0.6 * confidence_scores[expert_type] +
+                                   0.4 * semantic_score)
+                        confidence_scores[expert_type] = min(blended, 1.0)
+            except Exception as e:
+                self.logger.warning(f"Embedding scoring failed: {e}")
 
         # Select experts
         selected_experts, query_type = self._select_experts(confidence_scores)
