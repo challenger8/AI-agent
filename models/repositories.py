@@ -32,7 +32,33 @@ class DealRepository(BaseRepository[Deal]):
         )
     
     # NOW THESE BECOME ONE-LINERS:
-    
+    def create_deal(self, deal: Deal) -> Optional[str]:
+        """Create new deal"""
+        try:
+            query = """
+            INSERT INTO deals (id, title, description, register_time, price, 
+                            status, pipeline_stage_id, pipeline_id, change_to_won_time, 
+                            change_to_loss_time, last_tracking_time, next_tracking_time, 
+                            probability, contact_id, label_id, lost_reason_id, 
+                            lost_reason_note, lost_reason_other, is_idle, is_rotten, 
+                            is_rotten_in_stage, fields, last_update_time, items, mobile_phone)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            now = datetime.now()
+            params = (
+                deal.Id, deal.Title, deal.Description, deal.RegisterTime or now,
+                deal.Price, deal.Status, deal.PipelineStageId, deal.PipelineId,
+                deal.ChangeToWonTime, deal.ChangeToLossTime, deal.LastTrackingTime,
+                deal.NextTrackingTime, deal.Probability, deal.ContactId, 
+                deal.LabelId, deal.LostReasonId, deal.LostReasonNote, 
+                deal.LostReasonOther, deal.IsIdle, deal.IsRotten, 
+                deal.IsRottenInStage, deal.Fields, now, deal.Items, deal.MobilePhone
+            )
+            self.db.execute_insert(query, params)
+            return deal.Id
+        except Exception as e:
+            self.logger.error(f"Error creating deal: {e}")
+            return None
     def get_all_deals(self) -> List[Deal]:
         return self.get_all(order_by="register_time DESC")
     
@@ -68,7 +94,32 @@ class DealActivityRepository(BaseRepository[DealActivity]):
             title=row.get('title', ''),
             # ... rest of mapping
         )
-    
+    def create_activity(self, activity: DealActivity) -> Optional[str]:
+        """Create new activity"""
+        try:
+            query = """
+            INSERT INTO deal_activities (id, title, note, result_note, 
+                                        activity_type_id, is_done, 
+                                        due_date, finish_date, done_date, 
+                                        register_date, last_update_time, 
+                                        deal_id, creator_id, owner_id,
+                                        sentiment_score, sentiment_label)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            now = datetime.now()
+            params = (
+                activity.id, activity.title, activity.note, activity.resultnote,
+                activity.activitytypeid, activity.isdone,
+                activity.duedate, activity.finishdate, activity.donedate, 
+                activity.registerdate or now, now, activity.dealid,
+                activity.creatorid, activity.ownerid,
+                activity.sentiment_score, activity.sentiment_label
+            )
+            self.db.execute_insert(query, params)
+            return activity.id
+        except Exception as e:
+            self.logger.error(f"Error creating activity: {e}")
+            return None
     # ONE-LINERS!
     def get_activities_by_deal(self, deal_id: str) -> List[DealActivity]:
         return self.get_by_field("deal_id", deal_id, order_by="register_date DESC")

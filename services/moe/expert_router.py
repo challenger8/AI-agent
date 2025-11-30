@@ -289,38 +289,56 @@ class ExpertRouter:
 
     def _select_experts(self, confidence_scores: Dict[str, float]) -> Tuple[List[str], str]:
         """
-        Select experts based on confidence scores
+        Select experts based on confidence scores.
+        
+        FIXED: When no expert meets threshold, select highest scoring
+        expert instead of hardcoded default.
 
         Returns:
             Tuple of (selected_experts list, query_type)
         """
-        # Sort by confidence
+        # Sort by confidence (highest first)
         sorted_experts = sorted(
             confidence_scores.items(),
             key=lambda x: x[1],
             reverse=True
         )
 
+        threshold = MoESettings.ROUTING_CONFIDENCE_THRESHOLD
+        
         # Determine query type based on top expert
-        if sorted_experts and sorted_experts[0][1] >= MoESettings.ROUTING_CONFIDENCE_THRESHOLD:
+        if sorted_experts and sorted_experts[0][1] >= threshold:
             query_type = sorted_experts[0][0]
         else:
             query_type = 'mixed'
 
         # Select experts above threshold
         selected = []
-        threshold = MoESettings.ROUTING_CONFIDENCE_THRESHOLD
-
         for expert, score in sorted_experts:
             if score >= threshold and len(selected) < MoESettings.MAX_ACTIVE_EXPERTS:
                 selected.append(expert)
 
-        # If no experts selected, use default
+        # FIXED: If no experts selected, use HIGHEST SCORING (not hardcoded default!)
         if not selected:
-            selected = [MoESettings.DEFAULT_EXPERT]
-            query_type = MoESettings.DEFAULT_EXPERT
+            if sorted_experts and sorted_experts[0][1] > 0:
+                # Use the expert with highest score, even if below threshold
+                best_expert = sorted_experts[0][0]
+                best_score = sorted_experts[0][1]
+                selected = [best_expert]
+                query_type = best_expert
+                self.logger.debug(
+                    f"No experts met threshold ({threshold:.2f}), "
+                    f"using highest scoring: {best_expert} ({best_score:.2f})"
+                )
+            else:
+                # Only use default if ALL scores are zero
+                selected = [MoESettings.DEFAULT_EXPERT]
+                query_type = MoESettings.DEFAULT_EXPERT
+                self.logger.debug(
+                    f"All expert scores are zero, using default: {MoESettings.DEFAULT_EXPERT}"
+                )
+            
             self._metrics['fallback_routes'] += 1
-            self.logger.debug(f"No experts met threshold, using default: {MoESettings.DEFAULT_EXPERT}")
 
         # If single expert and multi-expert disabled, keep only first
         if not MoESettings.ENABLE_MULTI_EXPERT and len(selected) > 1:

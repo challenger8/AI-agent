@@ -31,8 +31,47 @@ class ToolHandlers:
         """
         self.analytics_service = analytics_service
         self.sentiment_service = sentiment_service
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.schemas = get_tool_schemas()
-    
+    async def handle_tool_call(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Main dispatcher for tool calls.
+        Routes tool_name to appropriate handler method.
+        
+        Args:
+            tool_name: Name of the tool to call
+            arguments: Arguments for the tool
+            
+        Returns:
+            Tool result dictionary
+        """
+        # Ensure sentiment model loaded for sentiment tools
+        if self._is_sentiment_tool(tool_name):
+            await self._ensure_sentiment_model_loaded()
+        
+        # Route to appropriate handler
+        handlers = {
+            'analyze_deal': self._handle_analyze_deal,
+            'analyze_deals_overview': self._handle_analyze_deals_overview,
+            'get_deal_activities': self._handle_get_deal_activities,
+            'analyze_portfolio_health': self._handle_analyze_portfolio_health,
+            'analyze_text_sentiment': self._handle_analyze_text_sentiment,
+            'get_sentiment_trends': self._handle_get_sentiment_trends,
+            'transcribe_audio': self._handle_transcribe_audio,
+            'transcribe_batch': self._handle_transcribe_batch,
+            'list_audio_files': self._handle_list_audio_files,
+            'validate_audio': self._handle_validate_audio,
+        }
+        
+        handler = handlers.get(tool_name)
+        if handler is None:
+            return {"error": f"Unknown tool: {tool_name}"}
+        
+        try:
+            return await handler(arguments)
+        except Exception as e:
+            self.logger.error(f"Error in tool {tool_name}: {e}")
+            return {"error": str(e)}
     def get_tools(self) -> List[Tool]:
         """Get list of available tools"""
         tools = [
