@@ -5,7 +5,7 @@ Expert for deal health analysis and insights
 """
 
 import re
-from typing import Any, Dict
+from typing import Any, Dict,List
 
 from ..base_expert import BaseExpert, ExpertResult
 from config.moe_settings import MoESettings
@@ -131,44 +131,7 @@ class DealAnalysisExpert(BaseExpert):
             self.logger.error(f"Deal analysis error: {e}")
             return ExpertResult.error_result(self.expert_type, str(e))
 
-    def calculate_confidence(self, query: str, result: Dict[str, Any]) -> float:
-        """Calculate confidence score for the result"""
-        base_confidence = 0.7
-
-        # Boost for successful result with data
-        if result and 'error' not in result:
-            base_confidence += 0.1
-
-        # Boost for health score present
-        if 'health_score' in result:
-            base_confidence += 0.1
-
-        # Boost for recommendations
-        if result.get('recommendations'):
-            base_confidence += 0.05
-
-        # Boost for insights
-        if result.get('insights'):
-            base_confidence += 0.05
-
-        return min(base_confidence, 1.0)
-
-    def _extract_deal_id(self, query: str, context: Dict[str, Any]) -> str:
-        """Extract deal ID from query or context"""
-        # Check context first
-        if context.get('deal_id'):
-            return str(context['deal_id'])
-
-        # Try to extract from query
-        patterns = [
-            r'\bdeal[\s_-]?(\d+)\b',
-            r'\bدیل[\s_-]?(\d+)\b',
-            r'\b(\d+)\b'  # Fallback to any number
-        ]
-
-        for pattern in patterns:
-            match = re.search(pattern, query, re.IGNORECASE)
-            if match:
-                return match.group(1)
-
-        return None
+    @property
+    def confidence_boost_keys(self) -> List[str]:
+        return ['health_score', 'recommendations', 'insights', 'risk_indicators']
+    

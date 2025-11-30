@@ -119,21 +119,4 @@ class SentimentExpert(BaseExpert):
             self.logger.error(f"Sentiment analysis error: {e}")
             return ExpertResult.error_result(self.expert_type, str(e))
 
-    def calculate_confidence(self, query: str, result: Dict[str, Any]) -> float:
-        """Calculate confidence score for the result"""
-        base_confidence = 0.6
-
-        # Use model's confidence if available
-        model_confidence = result.get('confidence', 0.5)
-        base_confidence = max(base_confidence, model_confidence)
-
-        # Boost for clear sentiment (not neutral)
-        sentiment = result.get('sentiment', 'neutral')
-        if sentiment in ['positive', 'negative', 'مثبت', 'منفی']:
-            base_confidence += 0.1
-
-        # Boost for high model confidence
-        if model_confidence > 0.8:
-            base_confidence += 0.1
-
-        return min(base_confidence, 1.0)
+    

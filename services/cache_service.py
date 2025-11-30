@@ -402,7 +402,54 @@ class CacheService:
             except Exception as e:
                 self.logger.error(f"Error closing Redis connection: {e}")
 
+# In services/cache_service.py
+# ADD these methods:
 
+import hashlib
+from typing import Any, Dict
+
+class CacheKeyGenerator:
+    """Centralized cache key generation"""
+    
+    SEPARATOR = ":"
+    
+    @staticmethod
+    def simple_key(prefix: str, *args) -> str:
+        """Generate simple cache key from prefix and args"""
+        key_parts = [prefix] + [str(arg) for arg in args]
+        return CacheKeyGenerator.SEPARATOR.join(key_parts)
+    
+    @staticmethod
+    def hashed_key(prefix: str, data: Any) -> str:
+        """Generate hashed cache key for complex data"""
+        if isinstance(data, dict):
+            data_str = str(sorted(data.items()))
+        else:
+            data_str = str(data)
+        
+        hash_value = hashlib.md5(data_str.encode()).hexdigest()[:16]
+        return f"{prefix}{CacheKeyGenerator.SEPARATOR}{hash_value}"
+    
+    @staticmethod
+    def query_key(prefix: str, query: str, context: Dict[str, Any] = None) -> str:
+        """Generate cache key for query + context"""
+        context_str = str(sorted(context.items())) if context else ""
+        combined = f"{query}:{context_str}"
+        return CacheKeyGenerator.hashed_key(prefix, combined)
+
+
+# Convenience function
+def generate_cache_key(prefix: str, *args, **kwargs) -> str:
+    """
+    Generate cache key based on input type.
+    
+    Usage:
+        generate_cache_key("deal", deal_id)           # Simple
+        generate_cache_key("query", query, context={})  # Complex
+    """
+    if 'context' in kwargs or (args and isinstance(args[0], str) and len(args) == 1):
+        return CacheKeyGenerator.query_key(prefix, args[0] if args else "", kwargs.get('context'))
+    return CacheKeyGenerator.simple_key(prefix, *args)
 # Global cache instance
 _cache_service = None
 

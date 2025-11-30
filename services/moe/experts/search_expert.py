@@ -5,7 +5,7 @@ Expert for semantic search using RAG/CAG
 """
 
 import re
-from typing import Any, Dict
+from typing import Any, Dict,List
 
 from ..base_expert import BaseExpert, ExpertResult
 from config.moe_settings import MoESettings
@@ -203,24 +203,7 @@ class SearchExpert(BaseExpert):
         except Exception as e:
             return {'error': str(e)}
 
-    def calculate_confidence(self, query: str, result: Dict[str, Any]) -> float:
-        """Calculate confidence score for the result"""
-        base_confidence = 0.6
+    @property
+    def confidence_boost_keys(self) -> List[str]:
+        return ['results', 'matches', 'relevance_scores']
 
-        # Boost based on number of results
-        total_results = result.get('total_results', 0)
-        if total_results > 0:
-            base_confidence += 0.1
-        if total_results >= 5:
-            base_confidence += 0.1
-
-        # Boost for high-scoring results
-        results = result.get('results', [])
-        if results and results[0].get('score', 0) > 0.8:
-            base_confidence += 0.1
-
-        # Boost for CAG correction
-        if result.get('correction_applied'):
-            base_confidence += 0.05
-
-        return min(base_confidence, 1.0)

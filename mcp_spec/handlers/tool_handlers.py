@@ -14,6 +14,8 @@ from utils.logging_config import get_logger
 from utils.exceptions import ServiceError
 from services.stt_service import get_stt_service
 from config.settings import STTSettings
+from utils.decorators import requires_sentiment
+
 logger = get_logger("tool_handlers")
 
 class ToolHandlers:
@@ -93,66 +95,16 @@ class ToolHandlers:
         
         return tools
     
-    async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
-        """
-        Handle tool call and return response
-        
-        Args:
-            name: Tool name
-            arguments: Tool arguments
-            
-        Returns:
-            List of text content responses
-        """
-        try:
-            # Load sentiment model if needed
-            if self._is_sentiment_tool(name) and self.sentiment_service:
-                await self._ensure_sentiment_model_loaded()
-            
-            # Route to appropriate handler
-            if name == "analyze_deal":
-                result = await self._handle_analyze_deal(arguments)
-            elif name == "analyze_deals_overview":
-                result = await self._handle_analyze_deals_overview(arguments)
-            elif name == "get_deal_activities_with_sentiment":
-                result = await self._handle_get_deal_activities(arguments)
-            elif name == "analyze_portfolio_health":
-                result = await self._handle_analyze_portfolio_health(arguments)
-            elif name == "analyze_text_sentiment":
-                result = await self._handle_analyze_text_sentiment(arguments)
-            elif name == "get_sentiment_trends":
-                result = await self._handle_get_sentiment_trends(arguments)
-            elif name == "transcribe_audio":
-                result = await self._handle_transcribe_audio(arguments)
-            elif name == "transcribe_batch":
-                result = await self._handle_transcribe_batch(arguments)
-            elif name == "list_audio_files":
-                result = await self._handle_list_audio_files(arguments)
-            elif name == "validate_audio":
-                result = await self._handle_validate_audio(arguments)
-            else:
-                result = json.dumps({"error": f"Unknown tool: {name}"})
-            
-            
-            if isinstance(result, dict):
-                result_text = json.dumps(result, ensure_ascii=False, default=str)
-            else:
-                result_text = result
-            
-            return [TextContent(
-                type="text",
-                text=result_text
-            )]
-        except Exception as e:
-            logger.error(f"Unexpected error in tool {name}: {e}")
-            error_result = {"error": f"Unexpected error: {str(e)}"}
-            return [TextContent(type="text", text=json.dumps(error_result, ensure_ascii=False))]    
-        
-        
-        except Exception as e:
-            logger.error(f"Unexpected error in tool {name}: {e}")
-            error_result = {"error": f"Unexpected error: {str(e)}"}
-            return [TextContent(type="text", text=json.dumps(error_result, ensure_ascii=False))]
+    @requires_sentiment({"error": "Sentiment model not available"})
+    async def _handle_analyze_text_sentiment(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        # No need to check anymore! Decorator handles it
+        text = arguments["text"]
+        result = self.sentiment_service.analyze_text(text)
+        result.update({
+            "analyzed_at": datetime.now().isoformat(),
+            "tool": "analyze_text_sentiment"
+        })
+        return result
     
     async def _handle_analyze_deal(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Handle comprehensive deal analysis"""
@@ -241,8 +193,9 @@ class ToolHandlers:
         
         return result
     
+    @requires_sentiment({"error": "Sentiment model not available"})
     async def _handle_get_sentiment_trends(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle sentiment trends analysis"""
+        # Clean! No boilerplate!
         deal_id = arguments["deal_id"]
         days = arguments.get("days", 7)
         

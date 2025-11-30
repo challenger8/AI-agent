@@ -11,7 +11,8 @@ from datetime import datetime
 
 from utils.logging_config import get_logger
 from utils.exceptions import ServiceError
-
+from config.constants import ConfidenceConfig
+import re
 
 @dataclass
 class ExpertResult:
@@ -113,7 +114,60 @@ class BaseExpert(ABC):
     def supported_query_types(self) -> List[str]:
         """Return list of query types this expert can handle"""
         return [self.expert_type]
-
+    @property
+    def confidence_boost_keys(self) -> List[str]:
+        """
+        Override in subclass to specify which result keys boost confidence.
+        
+        Returns:
+            List of keys that indicate high-quality results
+        """
+        return []
+    
+    def calculate_confidence(self, query: str, result: Dict[str, Any]) -> float:
+        """
+        Calculate confidence score for the result.
+        
+        Uses base score + boosts for data presence.
+        Override confidence_boost_keys in subclass to customize.
+        
+        Args:
+            query: Original query
+            result: Result dictionary
+            
+        Returns:
+            Confidence score between 0.0 and 1.0
+        """
+        if not result or 'error' in result:
+            return 0.0
+        
+        confidence = ConfidenceConfig.BASE_SCORE
+        
+        # Apply boosts for each key present
+        boost_keys = self.confidence_boost_keys
+        primary_keys = boost_keys[:2] if len(boost_keys) >= 2 else boost_keys
+        secondary_keys = boost_keys[2:] if len(boost_keys) > 2 else []
+        
+        for key in primary_keys:
+            if self._has_meaningful_value(result, key):
+                confidence += ConfidenceConfig.DATA_PRESENCE_BOOST
+        
+        for key in secondary_keys:
+            if self._has_meaningful_value(result, key):
+                confidence += ConfidenceConfig.SECONDARY_BOOST
+        
+        return min(confidence, ConfidenceConfig.MAX_CONFIDENCE)
+    
+    def _has_meaningful_value(self, result: Dict, key: str) -> bool:
+        """Check if key has a meaningful (non-empty) value"""
+        value = result.get(key)
+        if value is None:
+            return False
+        if isinstance(value, (list, dict, str)) and len(value) == 0:
+            return False
+        if isinstance(value, (int, float)) and value == 0:
+            return False
+        return True
     @abstractmethod
     async def analyze(self, query: str, context: Dict[str, Any] = None) -> ExpertResult:
         """
@@ -128,19 +182,7 @@ class BaseExpert(ABC):
         """
         pass
 
-    @abstractmethod
-    def calculate_confidence(self, query: str, result: Dict[str, Any]) -> float:
-        """
-        Calculate confidence score for the result
-
-        Args:
-            query: Original query
-            result: Analysis result
-
-        Returns:
-            Confidence score (0-1)
-        """
-        pass
+    
 
     def can_handle(self, query: str, context: Dict[str, Any] = None) -> float:
         """
@@ -284,3 +326,48 @@ class BaseExpert(ABC):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(type={self.expert_type})"
+    def _extract_deal_id(self, query: str, context: Dict[str, Any] = None) -> Optional[str]:
+        """
+        Extract deal ID from query or context
+        
+        Supports:
+        - Context with deal_id key
+        - English patterns: "deal 123", "deal-123", "deal_123"
+        - Persian patterns: "دیل 123", "دیل-123"
+        - Fallback: any number in query
+        
+        Args:
+            query: User query string
+            context: Optional context dict
+            
+        Returns:
+            Deal ID string or None if not found
+        """
+        context = context or {}
+        
+        # Check context first (highest priority)
+        if context.get('deal_id'):
+            return str(context['deal_id'])
+        
+        # Pattern matching (ordered by specificity)
+        patterns = [
+            r'\bdeal[\s_-]?(\d+)\b',      # English: deal123, deal-123
+            r'\bدیل[\s_-]?(\d+)\b',        # Persian: دیل123
+            r'\bقرارداد[\s_-]?(\d+)\b',    # Persian: قرارداد123
+            r'\bmعامله[\s_-]?(\d+)\b',     # Persian: معامله123
+        ]
+        
+        query_lower = query.lower()
+        for pattern in patterns:
+            match = re.search(pattern, query_lower, re.IGNORECASE)
+            if match:
+                return match.group(1)
+        
+        # Fallback: standalone number (only if query seems deal-related)
+        deal_indicators = ['deal', 'دیل', 'قرارداد', 'معامله', 'analyze', 'تحلیل']
+        if any(indicator in query_lower for indicator in deal_indicators):
+            fallback_match = re.search(r'\b(\d+)\b', query)
+            if fallback_match:
+                return fallback_match.group(1)
+        
+        return None

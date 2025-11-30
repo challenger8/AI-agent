@@ -319,37 +319,7 @@ class RiskAssessmentExpert(BaseExpert):
 
         return actions
 
-    def calculate_confidence(self, query: str, result: Dict[str, Any]) -> float:
-        """Calculate confidence score for the result"""
-        base_confidence = 0.7
-
-        # Boost for risk data presence
-        if result.get('risk_indicators'):
-            base_confidence += 0.1
-
-        # Boost for recommendations
-        if result.get('recommendations'):
-            base_confidence += 0.1
-
-        # Boost for mitigation actions
-        if result.get('mitigation_actions'):
-            base_confidence += 0.05
-
-        return min(base_confidence, 1.0)
-
-    def _extract_deal_id(self, query: str, context: Dict[str, Any]) -> str:
-        """Extract deal ID from query or context"""
-        if context.get('deal_id'):
-            return str(context['deal_id'])
-
-        patterns = [
-            r'\bdeal[\s_-]?(\d+)\b',
-            r'\bدیل[\s_-]?(\d+)\b'
-        ]
-
-        for pattern in patterns:
-            match = re.search(pattern, query, re.IGNORECASE)
-            if match:
-                return match.group(1)
-
-        return None
+    @property
+    def confidence_boost_keys(self) -> List[str]:
+        return ['risk_indicators', 'recommendations', 'mitigation_actions']
+    

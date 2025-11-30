@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Tuple
 from datetime import datetime
 import re
+from services.cache_service import generate_cache_key
 
 from config.moe_settings import MoESettings
 from utils.logging_config import get_logger
@@ -339,11 +340,7 @@ class ExpertRouter:
                 self._metrics['by_expert'][expert] += 1
 
     def _get_cache_key(self, query: str, context: Dict[str, Any]) -> str:
-        """Generate cache key for routing decision"""
-        import hashlib
-        context_str = str(sorted(context.items())) if context else ""
-        key = f"{query}:{context_str}"
-        return hashlib.md5(key.encode()).hexdigest()
+        return generate_cache_key("routing", query, context=context)
 
     def get_metrics(self) -> Dict[str, Any]:
         """Get routing metrics"""

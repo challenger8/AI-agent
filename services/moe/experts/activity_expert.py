@@ -238,37 +238,8 @@ class ActivityExpert(BaseExpert):
             type_counts[activity_type] = type_counts.get(activity_type, 0) + 1
         return type_counts
 
-    def calculate_confidence(self, query: str, result: Dict[str, Any]) -> float:
-        """Calculate confidence score for the result"""
-        base_confidence = 0.7
+    @property
+    def confidence_boost_keys(self) -> List[str]:
+        return ['total_activities', 'timeline', 'frequency']
 
-        # Boost for data presence
-        if result.get('total_activities', 0) > 0:
-            base_confidence += 0.1
-
-        # Boost for timeline
-        if result.get('timeline'):
-            base_confidence += 0.1
-
-        # Boost for frequency data
-        if result.get('frequency') and result['frequency'].get('average_per_day'):
-            base_confidence += 0.05
-
-        return min(base_confidence, 1.0)
-
-    def _extract_deal_id(self, query: str, context: Dict[str, Any]) -> str:
-        """Extract deal ID from query or context"""
-        if context.get('deal_id'):
-            return str(context['deal_id'])
-
-        patterns = [
-            r'\bdeal[\s_-]?(\d+)\b',
-            r'\bدیل[\s_-]?(\d+)\b'
-        ]
-
-        for pattern in patterns:
-            match = re.search(pattern, query, re.IGNORECASE)
-            if match:
-                return match.group(1)
-
-        return None
+    

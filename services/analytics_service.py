@@ -14,6 +14,7 @@ from services.deal_service import DealService
 from services.sentiment_service import SentimentService
 from config.settings import AnalysisSettings
 from utils.exceptions import ServiceError
+from services.cache_service import generate_cache_key
 
 class AnalyticsService(BaseService):
     """Advanced analytics combining deals, activities, and sentiment"""
@@ -36,7 +37,7 @@ class AnalyticsService(BaseService):
         """
         try:
             # Get deal data
-            cache_key = self.cache_service.generate_key("deal_analysis", deal_id)
+            cache_key = generate_cache_key("deal_analysis", deal_id)
         
         # Try cache first
             cached_result = self.cache_service.get(cache_key)
