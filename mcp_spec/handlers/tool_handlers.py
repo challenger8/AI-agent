@@ -15,6 +15,7 @@ from utils.exceptions import ServiceError
 from services.stt_service import get_stt_service
 from config.settings import STTSettings
 from utils.decorators import requires_sentiment
+import logging
 
 logger = get_logger("tool_handlers")
 

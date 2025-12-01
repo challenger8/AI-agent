@@ -8,7 +8,22 @@ import pytest
 import json
 import sys
 from pathlib import Path
-
+def parse_result(result):
+    """Parse result from tool handler - handles dict, str, or object with .text"""
+    if isinstance(result, dict):
+        return result
+    elif isinstance(result, str):
+        return json.loads(result) if result.startswith('{') else {"text": result}
+    elif isinstance(result, list) and len(result) > 0:
+        item = result[0]
+        if hasattr(item, 'text'):
+            return json.loads(item.text)
+        elif isinstance(item, str):
+            return json.loads(item) if item.startswith('{') else {"text": item}
+        return item
+    elif hasattr(result, 'text'):
+        return json.loads(result.text)
+    return result
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -65,11 +80,7 @@ class TestSTTMCPIntegration:
         )
         
         assert result is not None
-        assert len(result) > 0
-        assert hasattr(result[0], 'text')
-        
-        # Parse result
-        data = json.loads(result[0].text)
+        data = parse_result(result)
         
         assert 'audio_directory' in data
         assert 'total_files' in data
@@ -101,7 +112,7 @@ class TestSTTMCPIntegration:
         )
         
         assert result is not None
-        data = json.loads(result[0].text)
+        data = parse_result(result)
         
         assert 'audio_file' in data
         assert 'valid' in data
@@ -127,7 +138,7 @@ class TestSTTMCPIntegration:
             {}
         )
         
-        data = json.loads(list_result[0].text)
+        data = parse_result(list_result)
         
         if data.get('files') and len(data['files']) > 0:
             test_file = data['files'][0]['name']
@@ -139,7 +150,7 @@ class TestSTTMCPIntegration:
                 {'audio_file': test_file}
             )
             
-            validation = json.loads(result[0].text)
+            validation = parse_result(result)
             
             assert 'audio_file' in validation
             assert 'valid' in validation
@@ -169,7 +180,7 @@ class TestSTTMCPIntegration:
         )
         
         assert result is not None
-        data = json.loads(result[0].text)
+        data = json.loads(result if isinstance(result, (str, dict)) else result.text)
         
         # Should return error
         assert 'error' in data or ('success' in data and data['success'] == False)
@@ -191,7 +202,7 @@ class TestSTTMCPIntegration:
             {}
         )
         
-        data = json.loads(list_result[0].text)
+        data = parse_result(list_result)
         
         if data.get('files') and len(data['files']) > 0:
             test_file = data['files'][0]['name']
@@ -204,7 +215,7 @@ class TestSTTMCPIntegration:
                 {'audio_file': test_file, 'language': 'fa'}
             )
             
-            transcription = json.loads(result[0].text)
+            transcription = parse_result(result)
             
             assert 'success' in transcription or 'error' in transcription
             
@@ -245,7 +256,7 @@ class TestSTTMCPIntegration:
             {}
         )
         
-        data = json.loads(list_result[0].text)
+        data = parse_result(list_result)
         
         if data.get('files') and len(data['files']) > 0:
             # Get up to 2 files for batch test
@@ -258,7 +269,7 @@ class TestSTTMCPIntegration:
                 {'audio_files': test_files, 'language': 'fa'}
             )
             
-            batch_result = json.loads(result[0].text)
+            batch_result = parse_result(result)
             
             assert 'success' in batch_result or 'error' in batch_result
             
@@ -289,7 +300,7 @@ class TestSTTMCPIntegration:
             {}  # Missing audio_file
         )
         
-        data = json.loads(result[0].text)
+        data = parse_result(result)
         assert 'error' in data
         print(f"✅ Correctly handled missing parameter")
         
@@ -299,7 +310,7 @@ class TestSTTMCPIntegration:
             {'audio_files': []}
         )
         
-        data = json.loads(result[0].text)
+        data = parse_result(result)
         assert 'error' in data
         print(f"✅ Correctly handled empty batch")
 

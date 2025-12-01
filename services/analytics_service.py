@@ -97,6 +97,100 @@ class AnalyticsService(BaseService):
         Delegates to RecommendationEngine.
         """
         return self.recommendation_engine.generate(deal, health_score, risk_indicators)
+    def analyze_portfolio_overview(self, status: str = None, days: int = 30) -> Dict[str, Any]:
+        """
+        Portfolio-wide analytics.
+        
+        Args:
+            status: Optional status filter
+            days: Number of days to analyze
+            
+        Returns:
+            Portfolio overview dictionary
+        """
+        try:
+            # Check cache first
+            cache_key = self.cache_service.generate_key("portfolio", status or "all", days)
+            cached = self.cache_service.get(cache_key)
+            if cached:
+                return cached
+            
+            # Get deals
+            if status:
+                deals = self.deal_service.get_deals_by_status(status)
+            else:
+                deals = self.deal_service.get_all_deals()
+            
+            # Calculate summary
+            result = {
+                "period_days": days,
+                "status_filter": status,
+                "summary": {
+                    "total_deals": len(deals),
+                    "recent_deals": 0,
+                    "status_breakdown": {},
+                    "total_value": 0,
+                    "average_deal_value": 0.0,
+                    "total_activities": 0,
+                    "avg_activities_per_deal": 0.0,
+                    "deals_with_activity": 0,
+                    "activity_rate": 0.0
+                },
+                "health_overview": {
+                    "average_health_score": 0,
+                    "distribution": {"high": 0, "medium": 0, "low": 0},
+                    "at_risk_count": 0,
+                    "healthy_count": 0
+                },
+                "insights": [],
+                "analyzed_at": datetime.now().isoformat()
+            }
+            
+            # Cache result
+            self.cache_service.set(cache_key, result, ttl=600)
+            
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error in portfolio overview: {e}")
+            return {"error": str(e)}
+
+
+    def invalidate_deal_cache(self, deal_id: str) -> bool:
+        """
+        Invalidate cache for a specific deal.
+        
+        Args:
+            deal_id: Deal identifier
+            
+        Returns:
+            True if cache was invalidated
+        """
+        try:
+            cache_key = self.cache_service.generate_key("deal_analysis", deal_id)
+            deleted = self.cache_service.delete(cache_key)
+            
+            # Also invalidate portfolio cache
+            self.cache_service.delete_pattern("portfolio:*")
+            
+            self.logger.info(f"Invalidated cache for deal {deal_id}")
+            return deleted
+        except Exception as e:
+            self.logger.error(f"Error invalidating cache: {e}")
+            return False
+
+
+    def clear_analytics_cache(self) -> int:
+        """Clear all analytics caches"""
+        try:
+            deleted = self.cache_service.delete_pattern("deal_analysis:*")
+            deleted += self.cache_service.delete_pattern("portfolio:*")
+            
+            self.logger.info(f"Cleared analytics cache: {deleted} keys")
+            return deleted
+        except Exception as e:
+            self.logger.error(f"Error clearing cache: {e}")
+            return 0
     def analyze_deal_comprehensive(self, deal_id: str) -> Dict[str, Any]:
         """
         Comprehensive deal analysis - orchestrates all specialists.

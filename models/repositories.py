@@ -120,7 +120,25 @@ class DealActivityRepository(BaseRepository[DealActivity]):
         except Exception as e:
             self.logger.error(f"Error creating activity: {e}")
             return None
+    def update_activity_sentiment(self, activity_id: str, sentiment_score: float, sentiment_label: str) -> bool:
+        """Update activity with sentiment analysis results"""
+        try:
+            query = """
+            UPDATE deal_activities 
+            SET sentiment_score = %s, sentiment_label = %s, last_update_time = %s
+            WHERE id = %s
+            """
+            from datetime import datetime
+            rows_affected = self.db.execute_update(
+                query, 
+                (sentiment_score, sentiment_label, datetime.now(), activity_id)
+            )
+            return rows_affected > 0
+        except Exception as e:
+            self.logger.error(f"Error updating activity sentiment {activity_id}: {e}")
+            return False
     # ONE-LINERS!
+    
     def get_activities_by_deal(self, deal_id: str) -> List[DealActivity]:
         return self.get_by_field("deal_id", deal_id, order_by="register_date DESC")
     
