@@ -46,30 +46,33 @@ class CAGOrchestrator(BaseService):
     
     async def initialize(self):
         """Initialize all components"""
-        try:
-            self.logger.info("Initializing CAG Orchestrator...")
-            
-            # Initialize RAG service
-            self.rag_service = RAGSearchService(self.repositories)
-            await self.rag_service.initialize()
-            self.logger.info("✅ RAG service initialized")
-            
-            # Initialize scorer
-            self.scorer = RelevanceScorer(
-                confidence_threshold=CAGSettings.CONFIDENCE_THRESHOLD
-            )
-            self.logger.info("✅ Relevance scorer initialized")
-            
-            # Initialize rewriter with fallback
-            self.rewriter = QueryRewriterWithFallback()
-            self.logger.info("✅ Query rewriter initialized")
-            
-            self._initialized = True
-            self.logger.info("CAG Orchestrator initialized successfully")
-            
-        except Exception as e:
-            self.logger.error(f"CAG initialization failed: {e}")
-            raise ServiceError(f"CAG Orchestrator initialization failed: {e}")
+        success = await self._safe_initialize(
+            self._setup_cag_components,
+            service_name="CAG Orchestrator",
+            raise_on_error=True
+        )
+        # _initialized is set in _setup_cag_components, but if init fails, ensure it's False
+        if not success:
+            self._initialized = False
+    
+    async def _setup_cag_components(self):
+        """Actual CAG components setup logic"""
+        # Initialize RAG service
+        self.rag_service = RAGSearchService(self.repositories)
+        await self.rag_service.initialize()
+        self.logger.info("✅ RAG service initialized")
+        
+        # Initialize scorer
+        self.scorer = RelevanceScorer(
+            confidence_threshold=CAGSettings.CONFIDENCE_THRESHOLD
+        )
+        self.logger.info("✅ Relevance scorer initialized")
+        
+        # Initialize rewriter with fallback
+        self.rewriter = QueryRewriterWithFallback()
+        self.logger.info("✅ Query rewriter initialized")
+        
+        self._initialized = True
     
     def _check_initialized(self):
         """Check if orchestrator is initialized"""

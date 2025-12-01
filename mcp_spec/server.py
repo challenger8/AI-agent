@@ -175,14 +175,16 @@ class PersianDealAnalyzerMCPServer:
             return False
     async def _initialize_cag_orchestrator(self):
         """Initialize CAG orchestrator"""
-        try:
-            self.logger.info("Initializing CAG...")
-            self.cag_orchestrator = CAGOrchestrator(self.repositories)
-            await self.cag_orchestrator.initialize()
+        self.cag_orchestrator = CAGOrchestrator(self.repositories)
+        
+        success = await self.cag_orchestrator._safe_initialize(
+            self.cag_orchestrator.initialize,
+            service_name="CAG Orchestrator"
+        )
+        
+        if success:
             self.cag_manager = CAGSearchManager(self.cag_orchestrator)
-            self.logger.info("CAG initialized")
-        except Exception as e:
-            self.logger.error(f"CAG init failed: {e}")
+        else:
             self.cag_orchestrator = None
     async def _initialize_database(self):
         """Initialize database connection and repositories"""
@@ -222,17 +224,15 @@ class PersianDealAnalyzerMCPServer:
             self.logger.warning("Sentiment analysis not available - transformers not installed")
             return
         
-        try:
-            self.logger.info("Initializing sentiment service...")
-            self.sentiment_service = SentimentService(self.repositories)
-            
-            # Pre-load model for better performance
-            await self.sentiment_service.initialize()
-            
-            self.logger.info("Sentiment service initialized")
-            
-        except Exception as e:
-            self.logger.error(f"Sentiment service initialization failed: {e}")
+        self.sentiment_service = SentimentService(self.repositories)
+        
+        # Use base service helper for initialization
+        success = await self.sentiment_service._safe_initialize(
+            self.sentiment_service.initialize,
+            service_name="Sentiment Service"
+        )
+        
+        if not success:
             # Continue without sentiment service
             self.sentiment_service = None
     async def _initialize_stt_service(self):
@@ -241,17 +241,15 @@ class PersianDealAnalyzerMCPServer:
             self.logger.warning("STT not available - whisper not installed")
             return
         
-        try:
-            self.logger.info("Initializing STT service...")
-            self.stt_service = get_stt_service(self.repositories)
-            
-            # Pre-load model for better performance
-            await self.stt_service.initialize()
-            
-            self.logger.info("STT service initialized")
-            
-        except Exception as e:
-            self.logger.error(f"STT service initialization failed: {e}")
+        self.stt_service = get_stt_service(self.repositories)
+        
+        # Use base service helper for initialization
+        success = await self.stt_service._safe_initialize(
+            self.stt_service.initialize,
+            service_name="STT Service"
+        )
+        
+        if not success:
             # Continue without STT service
             self.stt_service = None
     def _initialize_analytics_service(self):

@@ -1,16 +1,20 @@
 """
 Deal, Deal Activity, and CRM Agent Models
 Updated to match actual CSV data structure
+REFACTORED: Using SerializableMixin for DRY principle
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from decimal import Decimal
 import json
 
+from models.base_model import SerializableMixin
+
+
 @dataclass
-class Deal:
+class Deal(SerializableMixin):
     """Deal model representing a business deal from Deals.csv"""
     
     # Primary fields (using UUID strings)
@@ -39,8 +43,8 @@ class Deal:
     
     # Relationships (UUID references)
     ContactId: Optional[str] = None
-    OwnerId: Optional[str] = None  # References crmteam.id
-    CreatorId: Optional[str] = None  # References crmteam.id
+    OwnerId: Optional[str] = None
+    CreatorId: Optional[str] = None
     LabelId: Optional[str] = None
     LostReasonId: Optional[str] = None
     
@@ -56,77 +60,13 @@ class Deal:
     IsRottenInStage: Optional[bool] = None
     
     # JSON fields (stored as strings in DB)
-    Fields: Optional[str] = None  # Custom fields JSON
-    Items: Optional[str] = None  # Deal items JSON
+    Fields: Optional[str] = None
+    Items: Optional[str] = None
     
     # Contact info
     MobilePhone: str = ""
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert deal to dictionary"""
-        return {
-            'Id': self.Id,
-            'Title': self.Title,
-            'Description': self.Description,
-            'RegisterTime': self.RegisterTime.isoformat() if self.RegisterTime else None,
-            'Price': float(self.Price) if self.Price else None,
-            'Status': self.Status,
-            'PipelineStageId': self.PipelineStageId,
-            'PipelineId': self.PipelineId,
-            'ChangeToWonTime': self.ChangeToWonTime.isoformat() if self.ChangeToWonTime else None,
-            'ChangeToLossTime': self.ChangeToLossTime.isoformat() if self.ChangeToLossTime else None,
-            'LastTrackingTime': self.LastTrackingTime.isoformat() if self.LastTrackingTime else None,
-            'NextTrackingTime': self.NextTrackingTime.isoformat() if self.NextTrackingTime else None,
-            'ExpectedCloseDate': self.ExpectedCloseDate.isoformat() if self.ExpectedCloseDate else None,
-            'LastActivityUpdateTime': self.LastActivityUpdateTime.isoformat() if self.LastActivityUpdateTime else None,
-            'LastUpdateTime': self.LastUpdateTime.isoformat() if self.LastUpdateTime else None,
-            'Probability': self.Probability,
-            'ContactId': self.ContactId,
-            'OwnerId': self.OwnerId,
-            'CreatorId': self.CreatorId,
-            'LabelId': self.LabelId,
-            'LostReasonId': self.LostReasonId,
-            'Pin': self.Pin,
-            'LostReasonNote': self.LostReasonNote,
-            'LostReasonOther': self.LostReasonOther,
-            'Feedback': self.Feedback,
-            'IsIdle': self.IsIdle,
-            'IsRotten': self.IsRotten,
-            'IsRottenInStage': self.IsRottenInStage,
-            'Fields': self.Fields,
-            'Items': self.Items,
-            'MobilePhone': self.MobilePhone
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Deal':
-        """Create deal from dictionary"""
-        deal = cls()
-        for key, value in data.items():
-            if hasattr(deal, key):
-                # Handle datetime fields
-                datetime_fields = [
-                    'RegisterTime', 'ChangeToWonTime', 'ChangeToLossTime',
-                    'LastTrackingTime', 'NextTrackingTime', 'ExpectedCloseDate',
-                    'LastActivityUpdateTime', 'LastUpdateTime'
-                ]
-                if key in datetime_fields and value:
-                    if isinstance(value, str):
-                        try:
-                            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
-                        except:
-                            value = None
-                # Handle decimal fields
-                elif key == 'Price' and value is not None:
-                    value = Decimal(str(value))
-                # Handle boolean fields
-                elif key in ['Pin', 'IsIdle', 'IsRotten', 'IsRottenInStage'] and value is not None:
-                    if isinstance(value, str):
-                        value = value.lower() in ['true', '1', 'yes']
-                
-                setattr(deal, key, value)
-        return deal
-    
+    # Custom helper methods (keep these)
     def get_fields_as_dict(self) -> Dict[str, Any]:
         """Parse Fields JSON string to dictionary"""
         if self.Fields:
@@ -147,11 +87,11 @@ class Deal:
 
 
 @dataclass
-class DealActivity:
+class DealActivity(SerializableMixin):
     """Deal activity model representing actions/notes on deals from activities.csv"""
     
     # Primary fields
-    id: Optional[str] = None  # UUID
+    id: Optional[str] = None
     title: str = ""
     note: str = ""
     resultnote: str = ""
@@ -170,64 +110,16 @@ class DealActivity:
     lastupdatetime: Optional[datetime] = None
     
     # Relationships (UUID references)
-    dealid: Optional[str] = None  # References Deal.Id
-    creatorid: Optional[str] = None  # References crmteam.id
-    ownerid: Optional[str] = None  # References crmteam.id
-    updaterid: Optional[str] = None  # References crmteam.id
+    dealid: Optional[str] = None
+    creatorid: Optional[str] = None
+    ownerid: Optional[str] = None
+    updaterid: Optional[str] = None
     
-    # Sentiment analysis fields (to be added by analysis)
+    # Sentiment analysis fields
     sentiment_score: Optional[float] = None
     sentiment_label: Optional[str] = None
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert activity to dictionary"""
-        return {
-            'id': self.id,
-            'title': self.title,
-            'note': self.note,
-            'resultnote': self.resultnote,
-            'activitytypeid': self.activitytypeid,
-            'isprivate': self.isprivate,
-            'isdone': self.isdone,
-            'ispinned': self.ispinned,
-            'duedate': self.duedate.isoformat() if self.duedate else None,
-            'finishdate': self.finishdate.isoformat() if self.finishdate else None,
-            'donedate': self.donedate.isoformat() if self.donedate else None,
-            'registerdate': self.registerdate.isoformat() if self.registerdate else None,
-            'lastupdatetime': self.lastupdatetime.isoformat() if self.lastupdatetime else None,
-            'dealid': self.dealid,
-            'creatorid': self.creatorid,
-            'ownerid': self.ownerid,
-            'updaterid': self.updaterid,
-            'sentiment_score': self.sentiment_score,
-            'sentiment_label': self.sentiment_label
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'DealActivity':
-        """Create activity from dictionary"""
-        activity = cls()
-        for key, value in data.items():
-            if hasattr(activity, key):
-                # Handle datetime fields
-                datetime_fields = [
-                    'duedate', 'finishdate', 'donedate', 
-                    'registerdate', 'lastupdatetime'
-                ]
-                if key in datetime_fields and value:
-                    if isinstance(value, str):
-                        try:
-                            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
-                        except:
-                            value = None
-                # Handle boolean fields
-                elif key in ['isprivate', 'isdone', 'ispinned'] and value is not None:
-                    if isinstance(value, str):
-                        value = value.lower() in ['true', '1', 'yes']
-                
-                setattr(activity, key, value)
-        return activity
-    
+    # Custom helper method (keep this)
     def get_combined_text(self) -> str:
         """Get combined text for sentiment analysis"""
         texts = []
@@ -241,10 +133,10 @@ class DealActivity:
 
 
 @dataclass
-class CRMAgent:
+class CRMAgent(SerializableMixin):
     """CRM Agent/User model from crmteam.csv"""
     
-    id: Optional[str] = None  # UUID
+    id: Optional[str] = None
     groupowner: str = ""
     ownername: str = ""
     adminid: Optional[str] = None
@@ -254,29 +146,7 @@ class CRMAgent:
     personalid: str = ""
     groupphone: str = ""
     
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert agent to dictionary"""
-        return {
-            'id': self.id,
-            'groupowner': self.groupowner,
-            'ownername': self.ownername,
-            'adminid': self.adminid,
-            'role': self.role,
-            'phone': self.phone,
-            'mobilephone': self.mobilephone,
-            'personalid': self.personalid,
-            'groupphone': self.groupphone
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'CRMAgent':
-        """Create agent from dictionary"""
-        agent = cls()
-        for key, value in data.items():
-            if hasattr(agent, key):
-                setattr(agent, key, value)
-        return agent
-    
+    # Custom helper methods (keep these)
     def get_display_name(self) -> str:
         """Get display name for the agent"""
         if self.ownername:

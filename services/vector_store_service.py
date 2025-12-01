@@ -37,23 +37,24 @@ class VectorStoreService(BaseService):
         self.client = None
         self.collections = {}
         self.logger = logging.getLogger(__name__)
-    
     async def initialize(self):
         """Initialize ChromaDB client and collections"""
-        try:
-            self.logger.info(f"Initializing ChromaDB with persist_dir: {self.persist_dir}")
-            
-            # Initialize ChromaDB with modern API (no deprecated Settings)
-            self.client = chromadb.PersistentClient(path=self.persist_dir)
-            
-            # Create/get collections for each data type
-            self._initialize_collections()
-            
-            self.logger.info("Vector store initialized successfully")
-        except Exception as e:
-            self.logger.error(f"Failed to initialize vector store: {e}")
-            raise ServiceError(f"Vector store initialization failed: {e}")
+        success = await self._safe_initialize(
+            self._setup_chromadb,
+            service_name=f"ChromaDB (persist_dir: {self.persist_dir})",
+            raise_on_error=True  # This service requires ChromaDB to work
+        )
+        # If initialization failed but didn't raise, ensure state is consistent
+        if not success and not self.client:
+            raise ServiceError("ChromaDB initialization failed")
     
+    async def _setup_chromadb(self):
+        """Actual ChromaDB setup logic"""
+        # Initialize ChromaDB with modern API (no deprecated Settings)
+        self.client = chromadb.PersistentClient(path=self.persist_dir)
+        
+        # Create/get collections for each data type
+        self._initialize_collections()
     def _initialize_collections(self):
         """Create or get ChromaDB collections for each entity type"""
         collection_names = ['deals', 'activities', 'agents']

@@ -317,21 +317,38 @@ class TestHealthScoreActivityImpact:
         stale = sample_activities_list[1]  
         stale.registerdate = datetime.now() - timedelta(days=30)
         
+        # =========================================
         # Test OPEN deal
+        # =========================================
         deal_dict['Status'] = 'در حال پیگیری'
+        deal_dict['change_to_won_time'] = None
+        deal_dict['change_to_loss_time'] = None
         score_open_recent = analytics_service._calculate_health_score(deal_dict, [recent], sentiment_summary)
         score_open_stale = analytics_service._calculate_health_score(deal_dict, [stale], sentiment_summary)
         assert score_open_recent > score_open_stale, "Open: Recent should score higher"
         
-        # Test WON deal
+        # =========================================
+        # Test WON deal - FIXED!
+        # =========================================
+        # WON deals care about POST-CLOSE follow-up, not pre-close activity recency
         deal_dict['Status'] = 'بسته شده'
-        deal_dict['change_to_won_time'] = datetime.now().isoformat()
-        score_won_recent = analytics_service._calculate_health_score(deal_dict, [recent], sentiment_summary)
-        score_won_stale = analytics_service._calculate_health_score(deal_dict, [stale], sentiment_summary)
-        assert score_won_recent > score_won_stale, "Won: Recent followup scores higher"
+        won_time = datetime.now() - timedelta(days=10)  # ← Deal closed 10 days ago
+        deal_dict['change_to_won_time'] = won_time.isoformat()
         
+        # Post-close follow-up activity (recent)
+        followup_recent = sample_activities_list[0]
+        followup_recent.registerdate = won_time + timedelta(days=2)  # ← 2 days AFTER close
+        
+        # No follow-up (empty activities)
+        score_won_followup = analytics_service._calculate_health_score(deal_dict, [followup_recent], sentiment_summary)
+        score_won_no_followup = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)
+        assert score_won_followup > score_won_no_followup, "Won: Follow-up scores higher than no follow-up"
+        
+        # =========================================
         # Test LOST deal
+        # =========================================
         deal_dict['Status'] = 'لغو شده'
+        deal_dict['change_to_won_time'] = None
         deal_dict['change_to_loss_time'] = datetime.now().isoformat()
         score_lost_effort = analytics_service._calculate_health_score(deal_dict, sample_activities_list[:8], sentiment_summary)
         score_lost_no_effort = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)

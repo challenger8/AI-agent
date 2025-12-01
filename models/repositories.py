@@ -146,70 +146,70 @@ class DealActivityRepository(BaseRepository[DealActivity]):
         return self.get_by_id(activity_id)
 
 
-class CRMAgentRepository:
+class CRMAgentRepository(BaseRepository[CRMAgent]):
     """Repository for CRM Agent operations - updated for crm_agents table"""
     
-    def __init__(self, db_manager):
-        self.db = db_manager
-        self.logger = logging.getLogger(__name__)
+    @property
+    def table_name(self) -> str:
+        return "crm_agents"
+    
+    def _map_row_to_model(self, row: Dict[str, Any]) -> CRMAgent:
+        """Map database row to CRMAgent object"""
+        return CRMAgent(
+            id=row.get('id', ''),
+            groupowner=row.get('group_owner', ''),
+            ownername=row.get('owner_name', ''),
+            adminid=row.get('admin_id', ''),
+            role=row.get('role', ''),
+            phone=row.get('phone', ''),
+            mobilephone=row.get('mobile_phone', ''),
+            personalid=row.get('personal_id', ''),
+            groupphone=row.get('group_phone', '')
+        )
+    
+    # =========================================
+    # NOW THESE BECOME ONE-LINERS!
+    # =========================================
     
     def get_all_agents(self) -> List[CRMAgent]:
         """Get all CRM agents"""
-        try:
-            query = 'SELECT * FROM crm_agents ORDER BY owner_name'
-            results = self.db.execute_query(query)
-            return [self._map_db_to_agent(row) for row in results]
-        except Exception as e:
-            self.logger.error(f"Error fetching agents: {e}")
-            return []
+        return self.get_all(order_by="owner_name")
     
     def get_agent_by_id(self, agent_id: str) -> Optional[CRMAgent]:
         """Get agent by ID"""
-        try:
-            query = 'SELECT * FROM crm_agents WHERE id = %s'
-            results = self.db.execute_query(query, (agent_id,))
-            if results:
-                return self._map_db_to_agent(results[0])
-            return None
-        except Exception as e:
-            self.logger.error(f"Error fetching agent {agent_id}: {e}")
-            return None
+        return self.get_by_id(agent_id)
     
     def get_agents_by_role(self, role: str) -> List[CRMAgent]:
         """Get agents by role"""
-        try:
-            query = 'SELECT * FROM crm_agents WHERE role = %s ORDER BY owner_name'
-            results = self.db.execute_query(query, (role,))
-            return [self._map_db_to_agent(row) for row in results]
-        except Exception as e:
-            self.logger.error(f"Error fetching agents by role {role}: {e}")
-            return []
+        return self.get_by_field("role", role, order_by="owner_name")
+    
+    # =========================================
+    # Only CUSTOM methods need implementation
+    # =========================================
     
     def create_agent(self, agent: CRMAgent) -> Optional[str]:
         """Create new agent"""
-        try:
-            query = """
-            INSERT INTO crm_agents (id, group_owner, owner_name, admin_id, 
-                               role, phone, mobile_phone, personal_id, group_phone)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            params = (
-                agent.id, agent.groupowner, agent.ownername, agent.adminid,
-                agent.role, agent.phone, agent.mobilephone, agent.personalid,
-                agent.groupphone
-            )
-            self.db.execute_insert(query, params)
+        query = """
+        INSERT INTO crm_agents (id, group_owner, owner_name, admin_id, 
+                           role, phone, mobile_phone, personal_id, group_phone)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        params = (
+            agent.id, agent.groupowner, agent.ownername, agent.adminid,
+            agent.role, agent.phone, agent.mobilephone, agent.personalid,
+            agent.groupphone
+        )
+        
+        if self._execute_write(query, params, error_context="creating agent"):
             return agent.id
-        except Exception as e:
-            self.logger.error(f"Error creating agent: {e}")
-            return None
+        return None
     
     def get_agent_performance(self, agent_id: str) -> Dict[str, Any]:
-        """Get performance metrics for an agent"""
+        """Get performance metrics for an agent (custom query)"""
         try:
             performance = {}
             
-            # Get deals by contact (since no owner_id in deals table)
+            # Get deals by contact
             deals_query = 'SELECT COUNT(*) as total, status FROM deals WHERE contact_id = %s GROUP BY status'
             deals_results = self.db.execute_query(deals_query, (agent_id,))
             
@@ -232,21 +232,6 @@ class CRMAgentRepository:
         except Exception as e:
             self.logger.error(f"Error getting agent performance {agent_id}: {e}")
             return {}
-    
-    def _map_db_to_agent(self, row: Dict[str, Any]) -> CRMAgent:
-        """Map database row to CRMAgent object"""
-        return CRMAgent(
-            id=row.get('id', ''),
-            groupowner=row.get('group_owner', ''),
-            ownername=row.get('owner_name', ''),
-            adminid=row.get('admin_id', ''),
-            role=row.get('role', ''),
-            phone=row.get('phone', ''),
-            mobilephone=row.get('mobile_phone', ''),
-            personalid=row.get('personal_id', ''),
-            groupphone=row.get('group_phone', '')
-        )
-
 
 class SentimentRepository:
     """Repository for Sentiment Analysis operations"""

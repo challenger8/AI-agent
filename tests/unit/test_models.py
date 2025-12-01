@@ -301,3 +301,27 @@ class TestModelSerialization:
         assert restored.id == sample_agent.id
         assert restored.ownername == sample_agent.ownername
         assert restored.role == sample_agent.role
+class TestDealModelRefactored:
+    """Test Deal model with SerializableMixin"""
+    
+    def test_deal_uses_mixin(self, sample_deal):
+        """Verify Deal uses SerializableMixin"""
+        from models.base_model import SerializableMixin
+        
+        assert isinstance(sample_deal, SerializableMixin)
+    
+    def test_deal_serialization_still_works(self, sample_deal):
+        """Verify serialization works after refactor"""
+        # to_dict should work
+        deal_dict = sample_deal.to_dict()
+        
+        assert isinstance(deal_dict, dict)
+        assert 'Id' in deal_dict
+        assert 'Title' in deal_dict
+        
+        # from_dict should work
+        from models.deal_model import Deal
+        restored = Deal.from_dict(deal_dict)
+        
+        assert restored.Id == sample_deal.Id
+        assert restored.Title == sample_deal.Title

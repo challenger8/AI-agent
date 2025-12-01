@@ -33,25 +33,28 @@ class RAGSearchService(BaseService):
     
     async def initialize(self):
         """Initialize embedding and vector store services"""
-        try:
-            self.logger.info("Initializing RAG search service...")
-            
-            # Initialize embedding service
-            self.embedding_service = EmbeddingService(self.repositories)
-            await self.embedding_service.initialize()
-            self.logger.info("✅ Embedding service initialized")
-            
-            # Initialize vector store service
-            self.vector_store_service = VectorStoreService(self.repositories)
-            await self.vector_store_service.initialize()
-            self.logger.info("✅ Vector store service initialized")
-            
-            self._initialized = True
-            self.logger.info("RAG search service initialized successfully")
-        except Exception as e:
-            self.logger.error(f"RAG initialization failed: {e}")
-            raise ServiceError(f"RAG search initialization failed: {e}")
+        success = await self._safe_initialize(
+            self._setup_rag_services,
+            service_name="RAG Search Service",
+            raise_on_error=True
+        )
+        # _initialized is set in _setup_rag_services
+        if not success:
+            self._initialized = False
     
+    async def _setup_rag_services(self):
+        """Actual RAG services setup logic"""
+        # Initialize embedding service
+        self.embedding_service = EmbeddingService(self.repositories)
+        await self.embedding_service.initialize()
+        self.logger.info("✅ Embedding service initialized")
+        
+        # Initialize vector store service
+        self.vector_store_service = VectorStoreService(self.repositories)
+        await self.vector_store_service.initialize()
+        self.logger.info("✅ Vector store service initialized")
+        
+        self._initialized = True
     def _check_initialized(self):
         """Check if service is initialized"""
         if not self._initialized:

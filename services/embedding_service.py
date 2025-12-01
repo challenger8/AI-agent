@@ -14,42 +14,35 @@ from utils.exceptions import ServiceError
 
 class EmbeddingService(BaseService):
     """Service for generating embeddings from CRM data"""
-    
     def __init__(self, repositories=None, model_name: str = "sentence-transformers/paraphrase-MiniLM-L6-v2"):
-        """
-        Initialize embedding service
-        
-        Args:
-            repositories: Repository manager
-            model_name: Sentence transformer model name (lightweight PyTorch-only model)
-        """
         super().__init__(repositories)
         self.model_name = model_name
         self.model = None
-        self.logger = logging.getLogger(__name__)
     
     async def initialize(self):
         """Load embedding model"""
-        try:
-            self.logger.info(f"Loading embedding model: {self.model_name}")
-            
-            # Lazy import to avoid dependencies at module load time
-            from sentence_transformers import SentenceTransformer
-            import os
-            
-            # Disable TensorFlow/Keras completely
-            os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-            os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-            os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # CPU only
-            
-            # Load model with PyTorch backend
-            self.model = SentenceTransformer(self.model_name, device='cpu')
-            self.logger.info("Embedding model loaded successfully")
-        except Exception as e:
-            self.logger.error(f"Failed to load embedding model: {e}")
-            # Return gracefully - model will be None
+        await self._safe_initialize(
+            self._load_model,
+            service_name=f"Embedding Model ({self.model_name})"
+        )
+        
+        # If model failed to load, log warning
+        if not self.model:
             self.logger.warning("Continuing without embedding model")
     
+    async def _load_model(self):
+        """Actual model loading logic"""
+        # Lazy import to avoid dependencies at module load time
+        from sentence_transformers import SentenceTransformer
+        import os
+        
+        # Disable TensorFlow/Keras completely
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+        os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # CPU only
+        
+        # Load model with PyTorch backend
+        self.model = SentenceTransformer(self.model_name, device='cpu')
     def embed_texts_batch(self, texts: List[str], batch_size: int = 32) -> Optional[List[List[float]]]:
         """
         Generate embeddings for multiple texts at once (optimized)

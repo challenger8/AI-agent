@@ -29,63 +29,20 @@ from services.deal_service import DealService
 from services.sentiment_service import SentimentService
 from services.analytics_service import AnalyticsService
 from services.cache_service import get_cache_service
-
+from tests.conftest import (
+    check_database_available,
+    check_redis_available,
+    check_chromadb_available
+)
+from tests.utils.test_helpers import parse_result
 
 # ============================================================================
 # SERVICE AVAILABILITY CHECKS (inherited from root conftest)
 # ============================================================================
 import json
 
-def parse_result(result):
-    """Parse result from tool handler - handles dict, str, or object with .text"""
-    if isinstance(result, dict):
-        return result
-    elif isinstance(result, str):
-        return json.loads(result) if result.startswith('{') else {"text": result}
-    elif isinstance(result, list) and len(result) > 0:
-        item = result[0]
-        if hasattr(item, 'text'):
-            return json.loads(item.text)
-        elif isinstance(item, str):
-            return json.loads(item) if item.startswith('{') else {"text": item}
-        return item
-    elif hasattr(result, 'text'):
-        return json.loads(result.text)
-    return result
-def check_database_available():
-    """Check if PostgreSQL is available"""
-    try:
-        db = create_database_manager()
-        result = db.test_connection()
-        db.close()
-        return result
-    except Exception:
-        return False
 
 
-def check_redis_available():
-    """Check if Redis is available"""
-    try:
-        import redis
-        host = os.getenv('REDIS_HOST', 'localhost')
-        port = int(os.getenv('REDIS_PORT', 6379))
-        r = redis.Redis(host=host, port=port, socket_connect_timeout=2, socket_timeout=2)
-        r.ping()
-        return True
-    except Exception:
-        return False
-
-
-def check_chromadb_available():
-    """Check if ChromaDB is available"""
-    try:
-        import chromadb
-        from config.rag_settings import RAGSettings
-        RAGSettings.validate_paths()
-        client = chromadb.PersistentClient(path=str(RAGSettings.CHROMA_DB_DIR))
-        return True
-    except Exception:
-        return False
 
 
 # ============================================================================
