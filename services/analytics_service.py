@@ -208,15 +208,13 @@ class AnalyticsService(BaseService):
             if cached:
                 return cached
             
-            # Get deal data
-            deal = self.deal_service.get_deal(deal_id)
-            if not deal:
+            # Get deal data (consistent data access through DealService)
+            data = self.deal_service.get_deal_with_activities(deal_id)
+            if not data:
                 return {"error": f"Deal {deal_id} not found"}
             
-            # Get activities
-            with self.repositories as uow:
-                activities = uow.activities.get_activities_by_deal(deal_id)
-            
+            deal = data['deal']
+            activities = data['activities']
             # Analyze sentiment
             sentiment_summary = self._analyze_sentiment(activities)
             

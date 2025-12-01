@@ -41,6 +41,34 @@ class TestDealService:
         assert isinstance(deals, list)
         assert len(deals) >= 3
     @pytest.mark.unit
+    def test_get_deal_with_activities(self, deal_service, test_repositories, sample_deal, sample_activities_list):
+        """Test getting deal with activities in one call"""
+        # Create deal
+        test_repositories.deals.create_deal(sample_deal)
+        
+        # Add activities
+        for activity in sample_activities_list[:3]:
+            activity.dealid = sample_deal.Id
+            test_repositories.activities.create_activity(activity)
+        
+        # Get deal with activities
+        result = deal_service.get_deal_with_activities(sample_deal.Id)
+        
+        assert result is not None
+        assert 'deal' in result
+        assert 'activities' in result
+        assert 'activity_count' in result
+        assert result['deal']['Id'] == sample_deal.Id
+        assert result['activity_count'] >= 3
+        assert len(result['activities']) >= 3
+    
+    @pytest.mark.unit
+    def test_get_deal_with_activities_not_found(self, deal_service):
+        """Test getting non-existent deal with activities returns None"""
+        result = deal_service.get_deal_with_activities('nonexistent-xyz')
+        
+        assert result is None
+    @pytest.mark.unit
     def test_get_deals_by_status(self, deal_service, test_repositories, sample_deals_list):
         """Test filtering deals by status"""
         # Create deals with different statuses

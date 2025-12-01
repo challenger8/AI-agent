@@ -146,8 +146,7 @@ def create_sample_data():
     
     return mock_repo
 
-@pytest.mark.asyncio
-async def test_embedding_generation(mock_repositories):
+async def test_embedding_generation(repositories):
     """Test embedding generation"""
     print("="*70)
     print("STEP 2: Generating Embeddings")
@@ -156,7 +155,7 @@ async def test_embedding_generation(mock_repositories):
     try:
         from services.embedding_service import EmbeddingService
         
-        embedding_service = EmbeddingService(mock_repositories)
+        embedding_service = EmbeddingService(repositories)
         print(f"📦 Embedding model: {embedding_service.model_name}")
         
         print("🔄 Initializing embedding service...")
@@ -185,24 +184,27 @@ async def test_embedding_generation(mock_repositories):
         print(f"❌ Error generating embeddings: {e}")
         return None
 
-@pytest.mark.asyncio
-async def test_vector_store(mock_repositories):
+
+async def test_vector_store(repositories, embedding_service=None):
     """Test vector store initialization and data indexing"""
     print("="*70)
     print("STEP 3: Initializing Vector Store (ChromaDB)")
     print("="*70)
-    embedding_service = await test_embedding_generation(mock_repositories)
+    
+    if embedding_service is None:
+        embedding_service = await test_embedding_generation(repositories)
     
     if embedding_service is None:
         print("⚠️  Skipping - embedding service not available")
         return None
+    
     try:
         from services.vector_store_service import VectorStoreService
         import tempfile
         
         # Use temporary directory for ChromaDB
         with tempfile.TemporaryDirectory() as tmpdir:
-            vector_store = VectorStoreService(mock_repositories, persist_dir=tmpdir)
+            vector_store = VectorStoreService(repositories, persist_dir=tmpdir)
             print(f"📂 ChromaDB persist directory: {tmpdir}")
             
             print("🔄 Initializing vector store...")
@@ -211,10 +213,6 @@ async def test_vector_store(mock_repositories):
             
             print(f"📦 Collections: {list(vector_store.collections.keys())}")
             print()
-            
-            if embedding_service is None:
-                print("⚠️  Skipping indexing - embedding service not available")
-                return None
             
             print("="*70)
             print("STEP 4: Indexing Data")
@@ -244,20 +242,23 @@ async def test_vector_store(mock_repositories):
         traceback.print_exc()
         return None
 
-@pytest.mark.asyncio
-async def test_semantic_search(mock_repositories):
+
+async def test_semantic_search(repositories, embedding_service=None, vector_store=None):
     """Test semantic search functionality"""
     print("="*70)
     print("STEP 5: Testing Semantic Search")
     print("="*70)
-    vector_store = await test_vector_store(mock_repositories)
+    
+    if vector_store is None:
+        vector_store = await test_vector_store(repositories, embedding_service)
     
     if vector_store is None:
         print("⚠️  Skipping - vector store not available")
         return
     
     # Need embedding_service too
-    embedding_service = await test_embedding_generation(mock_repositories)
+    if embedding_service is None:
+        embedding_service = await test_embedding_generation(repositories)
     
     if embedding_service is None:
         print("⚠️  Skipping - embedding service not available")
@@ -267,7 +268,7 @@ async def test_semantic_search(mock_repositories):
         from services.rag_search_service import RAGSearchService
         
         # Initialize RAG search service
-        rag_service = RAGSearchService(mock_repositories)
+        rag_service = RAGSearchService(repositories)
         rag_service.embedding_service = embedding_service
         rag_service.vector_store_service = vector_store
         rag_service._initialized = True
@@ -306,7 +307,6 @@ async def test_semantic_search(mock_repositories):
         print(f"❌ Error testing search: {e}")
         import traceback
         traceback.print_exc()
-
 
 async def main():
     """Run full RAG workflow test"""

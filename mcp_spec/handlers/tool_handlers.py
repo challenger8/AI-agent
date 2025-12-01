@@ -171,13 +171,13 @@ class ToolHandlers:
         deal_id = arguments["deal_id"]
         logger.info(f"Getting activities for deal {deal_id}")
         
-        # Get deal and activities
-        deal = self.analytics_service.deal_service.get_deal(deal_id)
-        if not deal:
+        # Get deal and activities (consistent data access)
+        data = self.analytics_service.deal_service.get_deal_with_activities(deal_id)
+        if not data:
             return {"error": f"Deal {deal_id} not found"}
         
-        with self.analytics_service.repositories as uow:
-            activities = uow.activities.get_by_deal_id(deal_id)
+        deal = data['deal']
+        activities = data['activities']
         
         # Build response with activities
         activities_data = []

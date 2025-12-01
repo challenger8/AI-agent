@@ -88,7 +88,7 @@ class TestDealServiceStatusDetection:
         days = deal_service.get_days_since_last_activity([])
         
         assert days == 999, f"Expected 999 (no activities), got {days}"
-
+    
 @pytest.mark.unit
 class TestHealthScoreScoringWonDeal:
     """Test health score calculation for WON deals"""

@@ -116,7 +116,44 @@ class DealService(BaseService):
         except Exception as e:
             self.logger.error(f"Error generating deals summary: {e}")
             raise ServiceError(f"Failed to generate summary: {e}")
-    
+    def get_deal_with_activities(self, deal_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get deal with all its activities (one-stop data access)
+        
+        This is the recommended way to fetch deal data for analysis.
+        Ensures consistent data access pattern across services.
+        
+        Args:
+            deal_id: Deal identifier
+            
+        Returns:
+            Dictionary with 'deal' and 'activities' keys, or None if deal not found
+            
+        Example:
+            data = deal_service.get_deal_with_activities('123')
+            if data:
+                deal = data['deal']
+                activities = data['activities']
+        """
+        try:
+            # Get deal
+            deal = self.get_deal(deal_id)
+            if not deal:
+                return None
+            
+            # Get activities
+            with self.repositories as uow:
+                activities = uow.activities.get_activities_by_deal(deal_id)
+            
+            return {
+                'deal': deal,
+                'activities': activities,
+                'activity_count': len(activities)
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error getting deal with activities {deal_id}: {e}")
+            raise ServiceError(f"Failed to get deal data: {e}")
     def get_deal_timeline(self, deal_id: int) -> Dict[str, Any]:
         """
         Get deal timeline with key milestones
