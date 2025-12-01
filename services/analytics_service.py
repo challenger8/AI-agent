@@ -10,7 +10,8 @@ from typing import Dict, List, Any, Optional
 from services.base_service import BaseService
 from services.deal_service import DealService
 from services.cache_service import get_cache_service
-
+from services.cache_strategies import CacheTTLStrategy
+from services.cache_service import get_two_level_cache
 # Import specialists
 from .analytics.health_calculator import HealthCalculator
 from .analytics.risk_analyzer import RiskAnalyzer
@@ -32,8 +33,7 @@ class AnalyticsService(BaseService):
         super().__init__(repositories)
         self.deal_service = DealService(repositories)
         self.sentiment_service = sentiment_service
-        self.cache_service = get_cache_service()
-        
+        self.cache_service = get_two_level_cache(l1_size=100)
         # Initialize specialists
         self.health_calculator = HealthCalculator(self.deal_service)
         self.risk_analyzer = RiskAnalyzer(self.deal_service)
@@ -147,7 +147,10 @@ class AnalyticsService(BaseService):
             }
             
             # Cache result
-            self.cache_service.set(cache_key, result, ttl=600)
+            cache_key = self.cache_service.generate_key("portfolio", status or "all", days)
+            ttl = CacheTTLStrategy.get_portfolio_ttl({'status': status})
+            self.cache_service.set(cache_key, result, ttl=ttl)
+            self.logger.debug(f"Cached portfolio (status={status}) with TTL={ttl}s")
             
             return result
             
@@ -259,7 +262,9 @@ class AnalyticsService(BaseService):
             }
             
             # Cache result
-            self.cache_service.set(cache_key, result, ttl=600)
+            ttl = CacheTTLStrategy.get_deal_ttl(deal)
+            self.cache_service.set(cache_key, result, ttl=ttl)
+            self.logger.debug(f"Cached deal analysis for {deal_id} with TTL={ttl}s")
             
             return result
             

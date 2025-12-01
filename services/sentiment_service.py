@@ -8,6 +8,7 @@ import asyncio
 from typing import Dict, List, Any, Optional
 from collections import defaultdict
 from services.cache_service import get_cache_service, CacheService
+from services.cache_strategies import CacheTTLStrategy
 
 from services.base_service import BaseService
 from config.settings import SentimentSettings, FeatureFlags, get_sentiment_available
@@ -121,7 +122,8 @@ class SentimentService(BaseService):
             }
             
             # Cache result for 1 hour (3600 seconds)
-            self.cache_service.set(cache_key, result, ttl=3600)
+            ttl = CacheTTLStrategy.get_sentiment_ttl()
+            self.cache_service.set(cache_key, result, ttl=ttl)
             self.logger.debug(f"Sentiment cached for text hash: {text_hash[:8]}")
             
             return result
