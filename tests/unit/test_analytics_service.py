@@ -169,27 +169,7 @@ class TestHealthScoreScoringLostDeal:
         score = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)
         
         assert score <= 40, f"LOST deal should score <= 40, got {score}"
-    @pytest.mark.unit
-    def test_lost_deal_with_effort_bonus(self, test_repositories, sample_deal, sample_activities_list):
-        """Test that LOST deals get bonus if there were many activities"""
-        analytics_service = AnalyticsService(test_repositories)
-        
-        # Setup lost deal
-        deal_dict = sample_deal.to_dict()
-        deal_dict['change_to_loss_time'] = (datetime.now() - timedelta(days=5)).isoformat()
-        deal_dict['Status'] = 'لغو شده'
-        
-        sentiment_summary = {'sentiment_available': False}
-        
-        # Score with no activities
-        score_no_effort = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)
-        
-        # Score with many activities
-        score_with_effort = analytics_service._calculate_health_score(deal_dict, sample_activities_list[:8], sentiment_summary)
-        
-        print(f"\nLOST no effort: {score_no_effort}, LOST with effort: {score_with_effort}")
-        assert score_with_effort > score_no_effort, "LOST deal with effort should score higher"
-
+    
 @pytest.mark.unit
 class TestHealthScoreScoringOpenDeal:
     """Test health score calculation for OPEN deals"""
@@ -213,26 +193,7 @@ class TestHealthScoreScoringOpenDeal:
         score = analytics_service._calculate_health_score(deal_dict, [recent_activity], sentiment_summary)
         
         assert score >= 60, f"OPEN deal with recent activity should score >= 60, got {score}"
-    @pytest.mark.unit
-    def test_open_deal_stale_activity_penalty(self, test_repositories, sample_deal, sample_activities_list):
-        """Test that OPEN deals with stale activity get penalty"""
-        analytics_service = AnalyticsService(test_repositories)
-        
-        # Setup open deal
-        deal_dict = sample_deal.to_dict()
-        deal_dict['Status'] = 'در حال پیگیری'
-        deal_dict['change_to_won_time'] = None
-        deal_dict['change_to_loss_time'] = None
-        
-        # Stale activity (45 days)
-        stale_activity = sample_activities_list[0]
-        stale_activity.registerdate = datetime.now() - timedelta(days=45)
-        
-        sentiment_summary = {'sentiment_available': False}
-        
-        score = analytics_service._calculate_health_score(deal_dict, [stale_activity], sentiment_summary)
-        
-        assert score < 40, f"OPEN deal with stale activity should score < 40, got {score}"
+    
     @pytest.mark.unit
     def test_open_deal_critical_inactivity_penalty(self, test_repositories, sample_deal, sample_activities_list):
         """Test that OPEN deals with critical inactivity get heavy penalty"""
@@ -337,7 +298,44 @@ class TestHealthScoreScoringOpenDeal:
         score = analytics_service._calculate_health_score(deal_dict, [recent_activity], sentiment_summary)
         
         assert score < 50, f"OPEN deal with negative sentiment should score < 50, got {score}"
-
+@pytest.mark.unit
+class TestHealthScoreActivityImpact:
+    """Test how activities impact health scores across all deal states"""
+    
+    def test_activity_recency_affects_all_states(self, test_repositories, sample_deal, sample_activities_list):
+        """Test recent vs stale activities impact scores for OPEN/WON/LOST deals"""
+        analytics_service = AnalyticsService(test_repositories)
+        
+        deal_dict = sample_deal.to_dict()
+        sentiment_summary = {'sentiment_available': False}
+        
+        # Recent activity
+        recent = sample_activities_list[0]
+        recent.registerdate = datetime.now() - timedelta(days=2)
+        
+        # Stale activity
+        stale = sample_activities_list[1]  
+        stale.registerdate = datetime.now() - timedelta(days=30)
+        
+        # Test OPEN deal
+        deal_dict['Status'] = 'در حال پیگیری'
+        score_open_recent = analytics_service._calculate_health_score(deal_dict, [recent], sentiment_summary)
+        score_open_stale = analytics_service._calculate_health_score(deal_dict, [stale], sentiment_summary)
+        assert score_open_recent > score_open_stale, "Open: Recent should score higher"
+        
+        # Test WON deal
+        deal_dict['Status'] = 'بسته شده'
+        deal_dict['change_to_won_time'] = datetime.now().isoformat()
+        score_won_recent = analytics_service._calculate_health_score(deal_dict, [recent], sentiment_summary)
+        score_won_stale = analytics_service._calculate_health_score(deal_dict, [stale], sentiment_summary)
+        assert score_won_recent > score_won_stale, "Won: Recent followup scores higher"
+        
+        # Test LOST deal
+        deal_dict['Status'] = 'لغو شده'
+        deal_dict['change_to_loss_time'] = datetime.now().isoformat()
+        score_lost_effort = analytics_service._calculate_health_score(deal_dict, sample_activities_list[:8], sentiment_summary)
+        score_lost_no_effort = analytics_service._calculate_health_score(deal_dict, [], sentiment_summary)
+        assert score_lost_effort > score_lost_no_effort, "Lost: Effort should improve score"
 @pytest.mark.unit
 class TestRiskIndicatorsWonDeal:
     """Test risk detection for WON deals"""

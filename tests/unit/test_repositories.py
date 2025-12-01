@@ -31,11 +31,7 @@ class TestDealRepository:
         assert retrieved_deal is not None
         assert retrieved_deal.Id == sample_deal.Id
         assert retrieved_deal.Title == sample_deal.Title
-    def test_get_deal_by_id_nonexistent(self, test_repositories):
-        """Test getting non-existent deal returns None"""
-        result = test_repositories.deals.get_deal_by_id('nonexistent-deal-xyz')
-        
-        assert result is None
+    
     def test_update_deal(self, test_repositories, sample_deal):
         """Test updating a deal"""
         # Create deal
@@ -156,7 +152,20 @@ class TestDealActivityRepository:
         # All returned activities should be not done
         for activity in pending:
             assert activity.isdone is False or activity.isdone is None
-
+@pytest.mark.unit
+class TestRepositoryNotFoundHandling:
+    """Test that all repositories handle missing IDs gracefully"""
+    
+    def test_get_by_nonexistent_id_returns_none(self, test_repositories):
+        """Test all repositories return None for non-existent IDs"""
+        # Deals
+        assert test_repositories.deals.get_deal_by_id('nonexistent-xyz') is None
+        
+        # Activities
+        assert test_repositories.activities.get_activity_by_id('nonexistent-xyz') is None
+        
+        # Agents
+        assert test_repositories.agents.get_agent_by_id('nonexistent-xyz') is None
 @pytest.mark.unit
 class TestCRMAgentRepository:
     """Test CRMAgentRepository"""
@@ -197,11 +206,7 @@ class TestCRMAgentRepository:
         # All returned agents should have the requested role
         for agent in agents:
             assert agent.role == 'فروشنده'
-    def test_get_agent_by_id_nonexistent(self, test_repositories):
-        """Test getting non-existent agent returns None"""
-        result = test_repositories.agents.get_agent_by_id('nonexistent-agent-xyz')
-        
-        assert result is None
+    
 
 @pytest.mark.unit
 class TestSentimentRepository:

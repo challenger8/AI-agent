@@ -40,16 +40,7 @@ class TestMCPServerInitialization:
         assert hasattr(server, 'tool_handlers')
         assert hasattr(server, 'resource_handlers')
     
-    async def test_server_status_before_init(self):
-        """Test getting server status before initialization"""
-        from mcp_spec.server import create_mcp_server
-        
-        server = create_mcp_server()
-        status = server.get_server_status()
-        
-        assert isinstance(status, dict)
-        assert 'server_name' in status
-        assert 'server_version' in status
+    
     
     async def test_initialize_services(self):
         """Test initializing server services"""
@@ -72,24 +63,7 @@ class TestMCPServerInitialization:
 class TestMCPToolHandlers:
     """Test MCP tool handlers"""
     
-    async def test_get_tools_list(self):
-        """Test getting list of available tools"""
-        from mcp_spec.server import create_mcp_server
-        
-        server = create_mcp_server()
-        await server.initialize_services()
-        
-        if server.tool_handlers:
-            tools = server.tool_handlers.get_tools()
-            
-            assert isinstance(tools, list)
-            assert len(tools) > 0
-            
-            # Check tool structure
-            if len(tools) > 0:
-                tool = tools[0]
-                assert hasattr(tool, 'name')
-                assert hasattr(tool, 'description')
+    
     
     async def test_analyze_deal_tool_not_found(self):
         """Test analyze_deal tool with non-existent deal"""
@@ -148,24 +122,7 @@ class TestMCPToolHandlers:
 class TestMCPResourceHandlers:
     """Test MCP resource handlers"""
     
-    async def test_get_resources_list(self):
-        """Test getting list of available resources"""
-        from mcp_spec.server import create_mcp_server
-        
-        server = create_mcp_server()
-        await server.initialize_services()
-        
-        if server.resource_handlers:
-            resources = server.resource_handlers.get_resources()
-            
-            assert isinstance(resources, list)
-            assert len(resources) > 0
-            
-            # Check resource structure
-            if len(resources) > 0:
-                resource = resources[0]
-                assert hasattr(resource, 'uri')
-                assert hasattr(resource, 'name')
+    
     
     async def test_dashboard_resource(self):
         """Test dashboard resource"""

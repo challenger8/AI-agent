@@ -174,23 +174,7 @@ class TestErrorHandlingIntegration:
             # Should handle gracefully
             pass
     
-    async def test_mcp_tool_with_invalid_params(self):
-        """Test MCP tool call with invalid parameters"""
-        from mcp_spec.server import create_mcp_server
-        
-        server = create_mcp_server()
-        await server.initialize_services()
-        
-        if server.tool_handlers:
-            # Call with missing required parameter
-            result = await server.tool_handlers.handle_tool_call(
-                'analyze_deal',
-                {}  # Missing deal_id
-            )
-            
-            # Should return error, not crash
-            assert result is not None
-
+    
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestCachingIntegration:

@@ -127,26 +127,15 @@ class TestSentimentServiceActivities:
 
 @pytest.mark.unit
 class TestSentimentCaching:
-    """Test sentiment analysis caching"""
-    @pytest.mark.unit
-    def test_same_text_uses_cache(self, mock_sentiment_service):
-        """Test that analyzing same text twice uses cache"""
-        text = "این یک متن تست است"
-        
-        # First call
-        result1 = mock_sentiment_service.analyze_text(text)
-        
-        # Second call (should use cache)
-        result2 = mock_sentiment_service.analyze_text(text)
-        
-        # Results should be identical
-        assert result1 == result2
-    @pytest.mark.unit
-    def test_different_text_no_cache(self, mock_sentiment_service):
-        """Test that different texts don't share cache"""
-        result1 = mock_sentiment_service.analyze_text("متن اول")
-        result2 = mock_sentiment_service.analyze_text("متن دوم")
-        
-        # Results may differ (depending on content)
-        assert result1 is not None
-        assert result2 is not None
+    """Test sentiment analysis caching
+    
+    Note: Cache behavior tested in integration tests with real Redis.
+    Unit tests focus on service logic, not infrastructure.
+    """
+    
+    @pytest.mark.skip(reason="Cache tested in integration suite")
+    def test_cache_placeholder(self):
+        """Placeholder - see integration/test_cache.py for real cache tests"""
+        pass
+    
+    
