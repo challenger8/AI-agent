@@ -1,94 +1,16 @@
 """
-tests/unit/test_analytics_service_refactored.py
--------------------------------------------------
-Tests for refactored AnalyticsService with status-aware scoring
+tests/unit/test_analytics_service.py
+------------------------------------
+Tests for AnalyticsService with status-aware scoring.
+
+NOTE: DealStatusDetection tests moved to test_deal_status_detector.py
+NOTE: ActivityUtils tests moved to test_activity_utils.py
 """
 
 import pytest
 from datetime import datetime, timedelta
 from services.analytics_service import AnalyticsService
-from services.deal_service import DealService
 
-@pytest.mark.unit
-class TestDealServiceStatusDetection:
-    """Test new status detection methods in DealService"""
-    @pytest.mark.unit
-    def test_detect_status_won_by_timestamp(self, test_repositories):
-        """Test detecting WON deal by change_to_won_time column"""
-        deal_service = DealService(test_repositories)
-        
-        deal = {
-            'Id': '1',
-            'Status': 'در حال پیگیری',  # Even says "in progress"
-            'change_to_won_time': (datetime.now() - timedelta(days=5)).isoformat(),  # But has won timestamp
-            'ChangeToWonTime': None
-        }
-        
-        status = deal_service.detect_deal_status(deal)
-        assert status == 'won', f"Expected 'won', got '{status}'"
-    @pytest.mark.unit
-    def test_detect_status_lost_by_timestamp(self, test_repositories):
-        """Test detecting LOST deal by change_to_loss_time column"""
-        deal_service = DealService(test_repositories)
-        
-        deal = {
-            'Id': '2',
-            'Status': 'در حال پیگیری',  # Says "in progress"
-            'change_to_won_time': None,
-            'change_to_loss_time': (datetime.now() - timedelta(days=3)).isoformat(),  # Has loss timestamp
-            'ChangeToLossTime': None
-        }
-        
-        status = deal_service.detect_deal_status(deal)
-        assert status == 'lost', f"Expected 'lost', got '{status}'"
-    @pytest.mark.unit
-    def test_detect_status_open_by_text(self, test_repositories):
-        """Test detecting OPEN deal by Status text"""
-        deal_service = DealService(test_repositories)
-        
-        deal = {
-            'Id': '3',
-            'Status': 'در حال پیگیری',
-            'change_to_won_time': None,
-            'change_to_loss_time': None
-        }
-        
-        status = deal_service.detect_deal_status(deal)
-        assert status == 'open', f"Expected 'open', got '{status}'"
-    @pytest.mark.unit
-    def test_detect_status_unknown(self, test_repositories):
-        """Test detecting UNKNOWN status"""
-        deal_service = DealService(test_repositories)
-        
-        deal = {
-            'Id': '4',
-            'Status': 'unknown_status_xyz',
-            'change_to_won_time': None,
-            'change_to_loss_time': None
-        }
-        
-        status = deal_service.detect_deal_status(deal)
-        assert status == 'unknown', f"Expected 'unknown', got '{status}'"
-    @pytest.mark.unit
-    def test_get_days_since_last_activity(self, test_repositories, sample_activities_list):
-        """Test calculating days since last activity"""
-        deal_service = DealService(test_repositories)
-        
-        # Make first activity 10 days ago
-        sample_activities_list[0].registerdate = datetime.now() - timedelta(days=10)
-        
-        days = deal_service.get_days_since_last_activity(sample_activities_list[:1])
-        
-        assert days == 10, f"Expected 10 days, got {days}"
-    @pytest.mark.unit
-    def test_get_days_since_last_activity_no_activities(self, test_repositories):
-        """Test with no activities"""
-        deal_service = DealService(test_repositories)
-        
-        days = deal_service.get_days_since_last_activity([])
-        
-        assert days == 999, f"Expected 999 (no activities), got {days}"
-    
 @pytest.mark.unit
 class TestHealthScoreScoringWonDeal:
     """Test health score calculation for WON deals"""
