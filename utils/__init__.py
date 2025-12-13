@@ -30,6 +30,7 @@ from utils.exceptions import (
     ConfigurationError,
     MCPServerError
 )
+from utils.model_utils import ensure_dict, get_id_from_entity
 
 __all__ = [
     # Date utilities
@@ -65,4 +66,8 @@ __all__ = [
     'ValidationError',
     'ConfigurationError',
     'MCPServerError',
+
+    # Model utilities
+    'ensure_dict',
+    'get_id_from_entity',
 ]

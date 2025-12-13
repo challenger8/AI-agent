@@ -6,12 +6,14 @@ Converts deals, activities, and agents to text chunks and generates embeddings
 """
 
 import logging
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional, Callable
 from datetime import datetime
 
 from services.base_service import BaseService
 from utils.exceptions import ServiceError
 from utils.embedding_text_formatter import EmbeddingTextFormatter
+from utils.model_utils import ensure_dict
+from config.entity_types import EntityTypes
 
 class EmbeddingService(BaseService):
     """Service for generating embeddings from CRM data"""
@@ -74,18 +76,79 @@ class EmbeddingService(BaseService):
             self.logger.error(f"Error generating batch embeddings: {e}")
             return None
     
-    def _format_deal_text(self, deal: Dict[str, Any]) -> str:
-        """Convert deal to searchable text. Delegates to EmbeddingTextFormatter."""
-        return EmbeddingTextFormatter.format_deal(deal)
+    # Configuration for entity embedding - maps entity type to (formatter, metadata_extractor)
+    _ENTITY_CONFIG = {
+        EntityTypes.DEALS: {
+            'formatter': EmbeddingTextFormatter.format_deal,
+            'metadata_keys': ['title', 'status', 'value', 'customer_name'],
+        },
+        EntityTypes.ACTIVITIES: {
+            'formatter': EmbeddingTextFormatter.format_activity,
+            'metadata_keys': ['deal_id', 'agent_name', 'activity_date', 'type'],
+        },
+        EntityTypes.AGENTS: {
+            'formatter': EmbeddingTextFormatter.format_agent,
+            'metadata_keys': ['name', 'email', 'phone', 'title'],
+        },
+    }
 
-    def _format_activity_text(self, activity: Dict[str, Any]) -> str:
-        """Convert activity to searchable text. Delegates to EmbeddingTextFormatter."""
-        return EmbeddingTextFormatter.format_activity(activity)
+    def _extract_metadata(self, entity_dict: Dict[str, Any], keys: List[str]) -> Dict[str, Any]:
+        """Extract metadata fields from entity dict."""
+        return {key: entity_dict.get(key) for key in keys}
 
-    def _format_agent_text(self, agent: Dict[str, Any]) -> str:
-        """Convert agent to searchable text. Delegates to EmbeddingTextFormatter."""
-        return EmbeddingTextFormatter.format_agent(agent)
-    
+    def _get_entities_from_repo(self, entity_type: str) -> List[Any]:
+        """Get all entities of given type from repository."""
+        with self.repositories as uow:
+            if entity_type == EntityTypes.DEALS:
+                return uow.deals.get_all_deals()
+            elif entity_type == EntityTypes.ACTIVITIES:
+                return uow.activities.get_all_activities()
+            elif entity_type == EntityTypes.AGENTS:
+                return uow.agents.get_all_agents()
+            else:
+                raise ServiceError(f"Unknown entity type: {entity_type}")
+
+    def _embed_entities(self, entity_type: str) -> List[Dict[str, Any]]:
+        """
+        Generic method to embed entities of any type.
+
+        Args:
+            entity_type: One of EntityTypes.DEALS, ACTIVITIES, AGENTS
+
+        Returns:
+            List of entities with embeddings
+        """
+        config = self._ENTITY_CONFIG.get(entity_type)
+        if not config:
+            raise ServiceError(f"No embedding config for entity type: {entity_type}")
+
+        singular_type = EntityTypes.get_singular(entity_type)
+
+        try:
+            entities = self._get_entities_from_repo(entity_type)
+            embeddings_data = []
+
+            for entity in entities:
+                entity_dict = ensure_dict(entity)
+                text = config['formatter'](entity_dict)
+                embedding = self.embed_text(text)
+
+                if embedding:
+                    embeddings_data.append({
+                        'id': str(entity_dict.get('id')),
+                        'type': singular_type,
+                        'text': text,
+                        'embedding': embedding,
+                        'metadata': self._extract_metadata(entity_dict, config['metadata_keys'])
+                    })
+
+            self.logger.info(f"Generated embeddings for {len(embeddings_data)} {entity_type}")
+            return embeddings_data
+
+        except Exception as e:
+            self.logger.error(f"Error embedding {entity_type}: {e}")
+            raise ServiceError(f"Failed to embed {entity_type}: {e}")
+
     def embed_text(self, text: str) -> Optional[List[float]]:
         """
         Generate embedding for text
@@ -111,115 +174,16 @@ class EmbeddingService(BaseService):
             return None
     
     def embed_deals(self) -> List[Dict[str, Any]]:
-        """
-        Generate embeddings for all deals
-        
-        Returns:
-            List of deals with embeddings
-        """
-        try:
-            with self.repositories as uow:
-                deals = uow.deals.get_all_deals()
-            
-            embeddings_data = []
-            for deal in deals:
-                deal_dict = deal.to_dict() if hasattr(deal, 'to_dict') else deal
-                text = self._format_deal_text(deal_dict)
-                embedding = self.embed_text(text)
-                
-                if embedding:
-                    embeddings_data.append({
-                        'id': str(deal_dict.get('id')),
-                        'type': 'deal',
-                        'text': text,
-                        'embedding': embedding,
-                        'metadata': {
-                            'title': deal_dict.get('title'),
-                            'status': deal_dict.get('status'),
-                            'value': deal_dict.get('value'),
-                            'customer_name': deal_dict.get('customer_name'),
-                        }
-                    })
-            
-            self.logger.info(f"Generated embeddings for {len(embeddings_data)} deals")
-            return embeddings_data
-        except Exception as e:
-            self.logger.error(f"Error embedding deals: {e}")
-            raise ServiceError(f"Failed to embed deals: {e}")
-    
+        """Generate embeddings for all deals. Delegates to generic _embed_entities."""
+        return self._embed_entities(EntityTypes.DEALS)
+
     def embed_activities(self) -> List[Dict[str, Any]]:
-        """
-        Generate embeddings for all activities
-        
-        Returns:
-            List of activities with embeddings
-        """
-        try:
-            with self.repositories as uow:
-                activities = uow.activities.get_all_activities()
-            
-            embeddings_data = []
-            for activity in activities:
-                activity_dict = activity.to_dict() if hasattr(activity, 'to_dict') else activity
-                text = self._format_activity_text(activity_dict)
-                embedding = self.embed_text(text)
-                
-                if embedding:
-                    embeddings_data.append({
-                        'id': str(activity_dict.get('id')),
-                        'type': 'activity',
-                        'text': text,
-                        'embedding': embedding,
-                        'metadata': {
-                            'deal_id': str(activity_dict.get('deal_id')),
-                            'agent_name': activity_dict.get('agent_name'),
-                            'activity_date': activity_dict.get('activity_date'),
-                            'type': activity_dict.get('type'),
-                        }
-                    })
-            
-            self.logger.info(f"Generated embeddings for {len(embeddings_data)} activities")
-            return embeddings_data
-        except Exception as e:
-            self.logger.error(f"Error embedding activities: {e}")
-            raise ServiceError(f"Failed to embed activities: {e}")
-    
+        """Generate embeddings for all activities. Delegates to generic _embed_entities."""
+        return self._embed_entities(EntityTypes.ACTIVITIES)
+
     def embed_agents(self) -> List[Dict[str, Any]]:
-        """
-        Generate embeddings for all agents
-        
-        Returns:
-            List of agents with embeddings
-        """
-        try:
-            with self.repositories as uow:
-                agents = uow.agents.get_all_agents()
-            
-            embeddings_data = []
-            for agent in agents:
-                agent_dict = agent.to_dict() if hasattr(agent, 'to_dict') else agent
-                text = self._format_agent_text(agent_dict)
-                embedding = self.embed_text(text)
-                
-                if embedding:
-                    embeddings_data.append({
-                        'id': str(agent_dict.get('id')),
-                        'type': 'agent',
-                        'text': text,
-                        'embedding': embedding,
-                        'metadata': {
-                            'name': agent_dict.get('name'),
-                            'email': agent_dict.get('email'),
-                            'phone': agent_dict.get('phone'),
-                            'title': agent_dict.get('title'),
-                        }
-                    })
-            
-            self.logger.info(f"Generated embeddings for {len(embeddings_data)} agents")
-            return embeddings_data
-        except Exception as e:
-            self.logger.error(f"Error embedding agents: {e}")
-            raise ServiceError(f"Failed to embed agents: {e}")
+        """Generate embeddings for all agents. Delegates to generic _embed_entities."""
+        return self._embed_entities(EntityTypes.AGENTS)
     
     def embed_all_data(self) -> Dict[str, List[Dict[str, Any]]]:
         """

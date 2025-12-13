@@ -125,17 +125,3 @@ class TestSentimentServiceActivities:
         assert result is not None
         assert isinstance(result, dict)
 
-@pytest.mark.unit
-class TestSentimentCaching:
-    """Test sentiment analysis caching
-    
-    Note: Cache behavior tested in integration tests with real Redis.
-    Unit tests focus on service logic, not infrastructure.
-    """
-    
-    @pytest.mark.skip(reason="Cache tested in integration suite")
-    def test_cache_placeholder(self):
-        """Placeholder - see integration/test_cache.py for real cache tests"""
-        pass
-    
-    

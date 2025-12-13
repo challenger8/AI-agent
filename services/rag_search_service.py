@@ -13,6 +13,7 @@ from services.base_service import BaseService
 from services.embedding_service import EmbeddingService
 from services.vector_store_service import VectorStoreService
 from utils.exceptions import ServiceError
+from config.entity_types import EntityTypes
 
 
 class RAGSearchService(BaseService):
@@ -129,62 +130,37 @@ class RAGSearchService(BaseService):
                 'timestamp': datetime.now().isoformat()
             }
     
+    def _search_collection(self, query: str, collection_type: str, n_results: int = 5) -> List[Dict[str, Any]]:
+        """
+        Generic search method for any collection type.
+
+        Args:
+            query: Search query
+            collection_type: EntityTypes.DEALS, ACTIVITIES, or AGENTS
+            n_results: Number of results
+
+        Returns:
+            List of matching entities
+        """
+        try:
+            self._check_initialized()
+            results = self.vector_store_service.search(query, collection_type, n_results)
+            return self._format_collection_results(results, EntityTypes.get_singular(collection_type))
+        except Exception as e:
+            self.logger.error(f"{collection_type} search failed: {e}")
+            return []
+
     def search_deals(self, query: str, n_results: int = 5) -> List[Dict[str, Any]]:
-        """
-        Search only in deals
-        
-        Args:
-            query: Search query
-            n_results: Number of results
-            
-        Returns:
-            List of matching deals
-        """
-        try:
-            self._check_initialized()
-            results = self.vector_store_service.search(query, 'deals', n_results)
-            return self._format_collection_results(results, 'deal')
-        except Exception as e:
-            self.logger.error(f"Deal search failed: {e}")
-            return []
-    
+        """Search only in deals. Delegates to generic _search_collection."""
+        return self._search_collection(query, EntityTypes.DEALS, n_results)
+
     def search_activities(self, query: str, n_results: int = 5) -> List[Dict[str, Any]]:
-        """
-        Search only in activities
-        
-        Args:
-            query: Search query
-            n_results: Number of results
-            
-        Returns:
-            List of matching activities
-        """
-        try:
-            self._check_initialized()
-            results = self.vector_store_service.search(query, 'activities', n_results)
-            return self._format_collection_results(results, 'activity')
-        except Exception as e:
-            self.logger.error(f"Activity search failed: {e}")
-            return []
-    
+        """Search only in activities. Delegates to generic _search_collection."""
+        return self._search_collection(query, EntityTypes.ACTIVITIES, n_results)
+
     def search_agents(self, query: str, n_results: int = 5) -> List[Dict[str, Any]]:
-        """
-        Search only in agents
-        
-        Args:
-            query: Search query
-            n_results: Number of results
-            
-        Returns:
-            List of matching agents
-        """
-        try:
-            self._check_initialized()
-            results = self.vector_store_service.search(query, 'agents', n_results)
-            return self._format_collection_results(results, 'agent')
-        except Exception as e:
-            self.logger.error(f"Agent search failed: {e}")
-            return []
+        """Search only in agents. Delegates to generic _search_collection."""
+        return self._search_collection(query, EntityTypes.AGENTS, n_results)
     
     def search_with_filters(self, query: str, filters: Dict[str, Any] = None, 
                            n_results: int = 5) -> Dict[str, Any]:
@@ -233,43 +209,48 @@ class RAGSearchService(BaseService):
                 'timestamp': datetime.now().isoformat()
             }
     
+    def _get_embed_method(self, collection_type: str):
+        """Get the embedding method for collection type."""
+        embed_methods = {
+            EntityTypes.DEALS: self.embedding_service.embed_deals,
+            EntityTypes.ACTIVITIES: self.embedding_service.embed_activities,
+            EntityTypes.AGENTS: self.embedding_service.embed_agents,
+        }
+        return embed_methods.get(collection_type)
+
     def reindex_collection(self, collection_type: str) -> Dict[str, Any]:
         """
         Reindex a specific collection (useful for updates)
-        
+
         Args:
-            collection_type: 'deals', 'activities', or 'agents'
-            
+            collection_type: EntityTypes.DEALS, ACTIVITIES, or AGENTS
+
         Returns:
             Reindexing status
         """
         try:
             self._check_initialized()
-            
-            if collection_type not in ['deals', 'activities', 'agents']:
+
+            if not EntityTypes.is_valid(collection_type):
                 raise ServiceError(f"Invalid collection type: {collection_type}")
-            
+
             self.logger.info(f"Reindexing {collection_type}...")
-            
+
             # Delete old collection
             self.vector_store_service.delete_collection(collection_type)
             self.logger.info(f"Deleted old {collection_type} collection")
-            
-            # Generate new embeddings
-            if collection_type == 'deals':
-                embeddings = self.embedding_service.embed_deals()
-            elif collection_type == 'activities':
-                embeddings = self.embedding_service.embed_activities()
-            else:  # agents
-                embeddings = self.embedding_service.embed_agents()
-            
+
+            # Generate new embeddings using mapped method
+            embed_method = self._get_embed_method(collection_type)
+            embeddings = embed_method()
+
             # Add to vector store
             self.vector_store_service.add_embeddings(embeddings, collection_type)
-            
+
             stats = self.vector_store_service.get_collection_stats(collection_type)
-            
+
             self.logger.info(f"Reindexing {collection_type} complete: {stats['document_count']} documents")
-            
+
             return {
                 'status': 'success',
                 'collection': collection_type,
