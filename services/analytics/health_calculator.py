@@ -9,6 +9,9 @@ from typing import Dict, List, Any
 
 from config.settings import AnalysisSettings
 from utils.logging_config import get_logger
+from utils.deal_status_detector import DealStatusDetector
+from utils.activity_utils import ActivityUtils
+from utils.date_utils import DateUtils
 
 
 class HealthCalculator:
@@ -62,23 +65,12 @@ class HealthCalculator:
             return "در خطر"
     
     def _detect_deal_status(self, deal: Dict[str, Any]) -> str:
-        """Detect deal status from deal data"""
-        # Check for won
-        if deal.get('change_to_won_time') or deal.get('ChangeToWonTime'):
-            return 'won'
-        
-        # Check for lost
-        if deal.get('change_to_loss_time') or deal.get('ChangeToLossTime'):
-            return 'lost'
-        
-        # Check status field
-        status = deal.get('Status', deal.get('status', '')).lower()
-        if status in ['بسته شده', 'won', 'closed_won']:
-            return 'won'
-        elif status in ['لغو شده', 'lost', 'closed_lost']:
-            return 'lost'
-        
-        return 'open'
+        """
+        Detect deal status from deal data.
+
+        Delegates to centralized DealStatusDetector utility.
+        """
+        return DealStatusDetector.detect_string(deal)
     
     def _calculate_won(self, deal: Dict[str, Any], activities: List[Any]) -> int:
         """Calculate health score for WON deals (80-100)"""
@@ -150,32 +142,20 @@ class HealthCalculator:
         return max(0, min(score, 100))
     
     def _count_activities_after(self, activities: List[Any], after_date) -> int:
-        """Count activities after a given date"""
-        if isinstance(after_date, str):
-            try:
-                after_date = datetime.fromisoformat(after_date.replace('Z', '+00:00'))
-            except:
-                return 0
-        
-        count = 0
-        for activity in activities:
-            activity_date = getattr(activity, 'registerdate', None)
-            if activity_date and activity_date > after_date:
-                count += 1
-        return count
+        """
+        Count activities after a given date.
+
+        Delegates to centralized ActivityUtils utility.
+        """
+        cutoff = DateUtils.parse_iso_date(after_date)
+        if not cutoff:
+            return 0
+        return ActivityUtils.count_activities_after(activities, cutoff)
     
     def _days_since_last_activity(self, activities: List[Any]) -> int:
-        """Calculate days since last activity"""
-        if not activities:
-            return 999
-        
-        latest = None
-        for activity in activities:
-            activity_date = getattr(activity, 'registerdate', None)
-            if activity_date:
-                if latest is None or activity_date > latest:
-                    latest = activity_date
-        
-        if latest:
-            return (datetime.now() - latest).days
-        return 999
+        """
+        Calculate days since last activity.
+
+        Delegates to centralized ActivityUtils utility.
+        """
+        return ActivityUtils.days_since_last_activity(activities)

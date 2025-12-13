@@ -1,7 +1,10 @@
 """
 tests/unit/test_moe_cache.py
 ----------------------------
-Unit tests for MoE cache service
+Unit tests for MoE cache service.
+
+NOTE: CacheEntry tests have been moved to test_memory_cache.py
+since CacheService now inherits from MemoryCache.
 """
 
 import pytest
@@ -9,62 +12,9 @@ import time
 
 from services.moe.cache_service import (
     CacheService,
-    CacheEntry,
     ExpertResultCache,
     RoutingCache
 )
-
-
-class TestCacheEntry:
-    """Tests for CacheEntry"""
-
-    def test_cache_entry_creation(self):
-        """Test creating cache entry"""
-        entry = CacheEntry(
-            key="test_key",
-            value="test_value",
-            created_at=time.time(),
-            last_accessed=time.time(),
-            ttl=300
-        )
-        assert entry.key == "test_key"
-        assert entry.value == "test_value"
-        assert entry.access_count == 0
-
-    def test_is_expired_false(self):
-        """Test entry not expired"""
-        entry = CacheEntry(
-            key="test",
-            value="value",
-            created_at=time.time(),
-            last_accessed=time.time(),
-            ttl=300
-        )
-        assert entry.is_expired is False
-
-    def test_is_expired_true(self):
-        """Test entry expired"""
-        entry = CacheEntry(
-            key="test",
-            value="value",
-            created_at=time.time() - 400,
-            last_accessed=time.time() - 400,
-            ttl=300
-        )
-        assert entry.is_expired is True
-
-    def test_touch(self):
-        """Test touch updates access"""
-        entry = CacheEntry(
-            key="test",
-            value="value",
-            created_at=time.time(),
-            last_accessed=time.time() - 100
-        )
-        old_access = entry.last_accessed
-        entry.touch()
-        assert entry.last_accessed > old_access
-        assert entry.access_count == 1
 
 
 class TestMoECacheService:

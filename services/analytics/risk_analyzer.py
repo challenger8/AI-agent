@@ -9,6 +9,8 @@ from typing import Dict, List, Any
 
 from config.settings import AnalysisSettings
 from utils.logging_config import get_logger
+from utils.activity_utils import ActivityUtils
+from utils.date_utils import DateUtils
 
 
 class RiskAnalyzer:
@@ -99,19 +101,21 @@ class RiskAnalyzer:
         return None
     
     def _assess_aging_risk(self, deal: Dict[str, Any]) -> Dict[str, Any] | None:
-        """Assess risk based on deal age"""
+        """
+        Assess risk based on deal age.
+
+        Uses centralized DateUtils for date parsing.
+        """
         register_time = deal.get('register_time') or deal.get('RegisterTime')
         if not register_time:
             return None
-        
-        if isinstance(register_time, str):
-            try:
-                register_time = datetime.fromisoformat(register_time.replace('Z', '+00:00'))
-            except:
-                return None
-        
-        deal_age_days = (datetime.now() - register_time).days
-        
+
+        parsed_time = DateUtils.parse_iso_date(register_time)
+        if not parsed_time:
+            return None
+
+        deal_age_days = DateUtils.days_since(parsed_time)
+
         if deal_age_days > 180:  # 6 months
             return {
                 "type": "deal_aging",
@@ -129,14 +133,9 @@ class RiskAnalyzer:
         return None
     
     def _days_since_last_activity(self, activities: List[Any]) -> int:
-        """Calculate days since last activity"""
-        if not activities:
-            return 999
-        
-        latest = None
-        for activity in activities:
-            activity_date = getattr(activity, 'registerdate', None)
-            if activity_date and (latest is None or activity_date > latest):
-                latest = activity_date
-        
-        return (datetime.now() - latest).days if latest else 999
+        """
+        Calculate days since last activity.
+
+        Delegates to centralized ActivityUtils utility.
+        """
+        return ActivityUtils.days_since_last_activity(activities)

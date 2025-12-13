@@ -420,14 +420,27 @@ def deal_service(mock_repositories):
             'timeline': [{'id': a.id, 'title': a.title} for a in activities],
             'total_events': len(activities)
         }
-    
+
+    def get_deal_with_activities(deal_id):
+        """Get deal with all its activities"""
+        deal = mock_repositories.deals.get_deal_by_id(deal_id)
+        if not deal:
+            return None
+        activities = mock_repositories.activities.get_activities_by_deal(deal_id)
+        return {
+            'deal': deal.to_dict(),
+            'activities': activities,
+            'activity_count': len(activities)
+        }
+
     service.get_deal = Mock(side_effect=get_deal)
     service.get_all_deals = Mock(side_effect=get_all_deals)
     service.get_deals_by_status = Mock(side_effect=get_deals_by_status)
     service.get_deals_summary = Mock(side_effect=get_deals_summary)
     service.get_deal_timeline = Mock(side_effect=get_deal_timeline)
+    service.get_deal_with_activities = Mock(side_effect=get_deal_with_activities)
     service._calculate_deal_duration = Mock(return_value=30)
-    
+
     return service
 
 
