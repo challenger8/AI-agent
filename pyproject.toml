@@ -22,7 +22,7 @@ dependencies = [
     "mcp>=1.0.0",
     
     # Web interface
-    "gradio>=4.0.0",
+    "gradio>=6.0.0",
     "plotly>=5.15.0",
     
     # Sentiment analysis and ML

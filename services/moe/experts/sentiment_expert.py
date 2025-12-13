@@ -1,7 +1,8 @@
 """
 services/moe/experts/sentiment_expert.py
 ----------------------------------------
-Expert for Persian text sentiment analysis
+Expert for Persian text sentiment analysis.
+REFACTORED: Uses centralized KeywordMatcher for can_handle().
 """
 
 from typing import Any, Dict
@@ -26,31 +27,13 @@ class SentimentExpert(BaseExpert):
         return ['sentiment', 'emotion', 'feeling']
 
     def can_handle(self, query: str, context: Dict[str, Any] = None) -> float:
-        """Determine if this expert can handle the query"""
-        query_lower = query.lower()
-        score = 0.0
+        """
+        Determine if this expert can handle the query.
 
-        # Check for sentiment-related keywords
-        sentiment_keywords = [
-            'sentiment', 'احساس', 'feeling', 'emotion', 'حس', 'mood', 'خلق',
-            'positive', 'مثبت', 'negative', 'منفی', 'neutral', 'خنثی',
-            'opinion', 'نظر', 'tone', 'لحن'
-        ]
-
-        for keyword in sentiment_keywords:
-            if keyword in query_lower:
-                score += 0.15
-
-        # Check if query is in Persian (likely wants sentiment analysis)
-        persian_chars = len([c for c in query if '\u0600' <= c <= '\u06FF'])
-        if persian_chars > len(query) * 0.3:
-            score += 0.2
-
-        # Context boost
-        if context and context.get('analyze_sentiment'):
-            score += 0.3
-
-        return min(score, 1.0)
+        Uses centralized KeywordMatcher for consistent scoring.
+        """
+        matcher = self._get_keyword_matcher()
+        return matcher.calculate_score(query, context)
 
     async def analyze(self, query: str, context: Dict[str, Any] = None) -> ExpertResult:
         """Perform sentiment analysis"""

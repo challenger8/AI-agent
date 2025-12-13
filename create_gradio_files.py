@@ -351,7 +351,6 @@ def run_gradio_app():
         server_name="0.0.0.0",
         server_port=7860,
         share=False,
-        debug=True,
         show_error=True
     )
 
@@ -474,7 +473,7 @@ if __name__ == "__main__":
 def create_requirements():
     """Create requirements_gradio.txt file"""
     content = '''# Requirements for Gradio MCP Client
-gradio>=4.0.0
+gradio>=6.0.0
 pandas>=1.5.0
 plotly>=5.0.0
 python-dotenv>=1.0.0
@@ -509,8 +508,8 @@ def install_requirements():
     
     try:
         subprocess.check_call([
-            sys.executable, "-m", "pip", "install", 
-            "gradio>=4.0.0", 
+            sys.executable, "-m", "pip", "install",
+            "gradio>=6.0.0",
             "pandas>=1.5.0", 
             "plotly>=5.0.0",
             "python-dotenv>=1.0.0"

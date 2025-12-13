@@ -233,24 +233,32 @@ class CRMAgentRepository(BaseRepository[CRMAgent]):
             self.logger.error(f"Error getting agent performance {agent_id}: {e}")
             return {}
 
-class SentimentRepository:
-    """Repository for Sentiment Analysis operations"""
-    
-    def __init__(self, db_manager):
-        self.db = db_manager
-        self.logger = logging.getLogger(__name__)
-    
+class SentimentRepository(BaseRepository[SentimentAnalysis]):
+    """
+    Repository for Sentiment Analysis operations.
+
+    REFACTORED: Now inherits from BaseRepository for LSP compliance.
+    """
+
+    @property
+    def table_name(self) -> str:
+        return "sentiment_analysis"
+
+    def _map_row_to_model(self, row: dict) -> SentimentAnalysis:
+        """Convert database row to SentimentAnalysis model"""
+        return SentimentAnalysis.from_dict(dict(row))
+
     def save_sentiment(self, sentiment: SentimentAnalysis) -> Optional[int]:
         """Save sentiment analysis result"""
         try:
             query = """
-            INSERT INTO sentiment_analysis (id, text, language, label, score, polarity, 
-                                        subjectivity, model_name, model_version, 
+            INSERT INTO sentiment_analysis (id, text, language, label, score, polarity,
+                                        subjectivity, model_name, model_version,
                                         processed_at, deal_id, activity_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             params = (
-                sentiment.id,sentiment.text, sentiment.language, sentiment.label, sentiment.score,
+                sentiment.id, sentiment.text, sentiment.language, sentiment.label, sentiment.score,
                 sentiment.polarity, sentiment.subjectivity, sentiment.model_name,
                 sentiment.model_version, sentiment.processed_at or datetime.now(),
                 sentiment.deal_id, sentiment.activity_id
@@ -259,46 +267,40 @@ class SentimentRepository:
         except Exception as e:
             self.logger.error(f"Error saving sentiment: {e}")
             return None
-    
+
     def get_sentiment_by_activity(self, activity_id: str) -> Optional[SentimentAnalysis]:
         """Get sentiment analysis for an activity"""
-        try:
-            query = 'SELECT * FROM sentiment_analysis WHERE activity_id = %s'
-            results = self.db.execute_query(query, (activity_id,))
-            if results:
-                return SentimentAnalysis.from_dict(dict(results[0]))
-            return None
-        except Exception as e:
-            self.logger.error(f"Error fetching sentiment for activity {activity_id}: {e}")
-            return None
-    
+        return self._execute_query_single(
+            'SELECT * FROM sentiment_analysis WHERE activity_id = %s',
+            (activity_id,),
+            error_context=f"fetching sentiment for activity {activity_id}"
+        )
+
     def get_sentiments_by_deal(self, deal_id: str) -> List[SentimentAnalysis]:
         """Get all sentiment analyses for a deal"""
-        try:
-            query = 'SELECT * FROM sentiment_analysis WHERE deal_id = %s ORDER BY processed_at DESC'
-            results = self.db.execute_query(query, (deal_id,))
-            return [SentimentAnalysis.from_dict(dict(row)) for row in results]
-        except Exception as e:
-            self.logger.error(f"Error fetching sentiments for deal {deal_id}: {e}")
-            return []
-    
+        return self._execute_query_list(
+            'SELECT * FROM sentiment_analysis WHERE deal_id = %s ORDER BY processed_at DESC',
+            (deal_id,),
+            error_context=f"fetching sentiments for deal {deal_id}"
+        )
+
     def get_sentiment_statistics(self) -> Dict[str, Any]:
         """Get sentiment analysis statistics"""
         try:
             stats = {}
-            
+
             # Overall sentiment distribution
             dist_query = 'SELECT label, COUNT(*) as count FROM sentiment_analysis GROUP BY label'
             dist_results = self.db.execute_query(dist_query)
             stats['sentiment_distribution'] = {row['label']: row['count'] for row in dist_results}
-            
+
             # Average scores
             avg_query = 'SELECT AVG(score) as avg_score, AVG(polarity) as avg_polarity FROM sentiment_analysis'
             avg_result = self.db.execute_query(avg_query)
             if avg_result:
                 stats['average_score'] = avg_result[0]['avg_score']
                 stats['average_polarity'] = avg_result[0]['avg_polarity']
-            
+
             return stats
         except Exception as e:
             self.logger.error(f"Error getting sentiment statistics: {e}")

@@ -14,6 +14,7 @@ import numpy as np
 
 from config.rag_settings import RAGSettings
 from utils.exceptions import ServiceError
+from utils.embedding_text_formatter import EmbeddingTextFormatter
 
 
 class BatchEmbeddingMetrics:
@@ -250,36 +251,16 @@ class OptimizedEmbeddingService:
             return False
     
     def _format_deal_text(self, deal: Dict[str, Any]) -> str:
-        """Format deal for embedding"""
-        text_parts = [
-            f"Deal: {deal.get('title', 'N/A')}",
-            f"Status: {deal.get('status', 'N/A')}",
-            f"Value: {deal.get('value', 0)}",
-            f"Customer: {deal.get('customer_name', 'N/A')}",
-            f"Description: {deal.get('description', '')}",
-        ]
-        return " | ".join(filter(None, text_parts))
-    
+        """Format deal for embedding. Delegates to EmbeddingTextFormatter."""
+        return EmbeddingTextFormatter.format_deal(deal)
+
     def _format_activity_text(self, activity: Dict[str, Any]) -> str:
-        """Format activity for embedding"""
-        text_parts = [
-            f"Activity: {activity.get('type', 'N/A')}",
-            f"Agent: {activity.get('agent_name', 'N/A')}",
-            f"Date: {activity.get('activity_date', 'N/A')}",
-            f"Notes: {activity.get('notes', '')}",
-            f"Outcome: {activity.get('outcome', '')}",
-        ]
-        return " | ".join(filter(None, text_parts))
-    
+        """Format activity for embedding. Delegates to EmbeddingTextFormatter."""
+        return EmbeddingTextFormatter.format_activity(activity)
+
     def _format_agent_text(self, agent: Dict[str, Any]) -> str:
-        """Format agent for embedding"""
-        text_parts = [
-            f"Agent: {agent.get('name', 'N/A')}",
-            f"Email: {agent.get('email', 'N/A')}",
-            f"Phone: {agent.get('phone', 'N/A')}",
-            f"Title: {agent.get('title', 'N/A')}",
-        ]
-        return " | ".join(filter(None, text_parts))
+        """Format agent for embedding. Delegates to EmbeddingTextFormatter."""
+        return EmbeddingTextFormatter.format_agent(agent)
     
     async def embed_all_data_optimized(self) -> Dict[str, Any]:
         """
