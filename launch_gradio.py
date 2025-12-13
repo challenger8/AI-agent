@@ -40,7 +40,6 @@ def run_gradio_app():
         server_name="0.0.0.0",
         server_port=7860,
         share=False,
-        debug=True,
         show_error=True
     )
 

@@ -3,7 +3,7 @@
 # ============================================
 pip
 # Web Interface & Visualization
-gradio
+gradio>=6.0.0
 plotly
 pandas
 

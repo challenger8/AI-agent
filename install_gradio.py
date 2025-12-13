@@ -11,9 +11,9 @@ def install_requirements():
     
     try:
         subprocess.check_call([
-            sys.executable, "-m", "pip", "install", 
-            "gradio>=4.0.0", 
-            "pandas>=1.5.0", 
+            sys.executable, "-m", "pip", "install",
+            "gradio>=6.0.0",
+            "pandas>=1.5.0",
             "plotly>=5.0.0",
             "python-dotenv>=1.0.0"
         ])
@@ -30,4 +30,4 @@ if __name__ == "__main__":
         print("Run: python launch_gradio.py")
     else:
         print("\n❌ Installation failed. Please install manually:")
-        print("pip install gradio pandas plotly python-dotenv")
+        print("pip install 'gradio>=6.0.0' pandas plotly python-dotenv")
