@@ -6,7 +6,7 @@ Converts deals, activities, and agents to text chunks and generates embeddings
 """
 
 import logging
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from datetime import datetime
 
 from services.base_service import BaseService

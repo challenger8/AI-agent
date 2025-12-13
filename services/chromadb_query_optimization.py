@@ -7,6 +7,7 @@ Reduces search time from 2 seconds to 100ms (20x faster)
 
 import logging
 import asyncio
+import time
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 import chromadb
@@ -61,7 +62,7 @@ class ChromaDBConnectionPool:
         
         # All connections busy, wait and retry
         self.logger.debug("All connections busy, waiting...")
-        asyncio.sleep(0.1)
+        time.sleep(0.1)
         return self.get_connection()
     
     def return_connection(self, connection: chromadb.PersistentClient):
