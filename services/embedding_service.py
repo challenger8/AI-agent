@@ -11,6 +11,7 @@ from datetime import datetime
 
 from services.base_service import BaseService
 from utils.exceptions import ServiceError
+from utils.embedding_text_formatter import EmbeddingTextFormatter
 
 class EmbeddingService(BaseService):
     """Service for generating embeddings from CRM data"""
@@ -74,60 +75,16 @@ class EmbeddingService(BaseService):
             return None
     
     def _format_deal_text(self, deal: Dict[str, Any]) -> str:
-        """
-        Convert deal to searchable text
-        
-        Args:
-            deal: Deal dictionary
-            
-        Returns:
-            Formatted text for embedding
-        """
-        text_parts = [
-            f"Deal: {deal.get('title', 'N/A')}",
-            f"Status: {deal.get('status', 'N/A')}",
-            f"Value: {deal.get('value', 0)}",
-            f"Customer: {deal.get('customer_name', 'N/A')}",
-            f"Description: {deal.get('description', '')}",
-        ]
-        return " | ".join(filter(None, text_parts))
-    
+        """Convert deal to searchable text. Delegates to EmbeddingTextFormatter."""
+        return EmbeddingTextFormatter.format_deal(deal)
+
     def _format_activity_text(self, activity: Dict[str, Any]) -> str:
-        """
-        Convert activity to searchable text
-        
-        Args:
-            activity: Activity dictionary
-            
-        Returns:
-            Formatted text for embedding
-        """
-        text_parts = [
-            f"Activity: {activity.get('type', 'N/A')}",
-            f"Agent: {activity.get('agent_name', 'N/A')}",
-            f"Date: {activity.get('activity_date', 'N/A')}",
-            f"Notes: {activity.get('notes', '')}",
-            f"Outcome: {activity.get('outcome', '')}",
-        ]
-        return " | ".join(filter(None, text_parts))
-    
+        """Convert activity to searchable text. Delegates to EmbeddingTextFormatter."""
+        return EmbeddingTextFormatter.format_activity(activity)
+
     def _format_agent_text(self, agent: Dict[str, Any]) -> str:
-        """
-        Convert agent to searchable text
-        
-        Args:
-            agent: Agent dictionary
-            
-        Returns:
-            Formatted text for embedding
-        """
-        text_parts = [
-            f"Agent: {agent.get('name', 'N/A')}",
-            f"Email: {agent.get('email', 'N/A')}",
-            f"Phone: {agent.get('phone', 'N/A')}",
-            f"Title: {agent.get('title', 'N/A')}",
-        ]
-        return " | ".join(filter(None, text_parts))
+        """Convert agent to searchable text. Delegates to EmbeddingTextFormatter."""
+        return EmbeddingTextFormatter.format_agent(agent)
     
     def embed_text(self, text: str) -> Optional[List[float]]:
         """
