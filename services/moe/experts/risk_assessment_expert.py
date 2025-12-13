@@ -1,10 +1,10 @@
 """
 services/moe/experts/risk_assessment_expert.py
 ----------------------------------------------
-Expert for risk evaluation and predictions
+Expert for risk evaluation and predictions.
+REFACTORED: Uses centralized KeywordMatcher for can_handle().
 """
 
-import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
@@ -29,38 +29,13 @@ class RiskAssessmentExpert(BaseExpert):
         return ['risk', 'warning', 'problem', 'threat']
 
     def can_handle(self, query: str, context: Dict[str, Any] = None) -> float:
-        """Determine if this expert can handle the query"""
-        query_lower = query.lower()
-        score = 0.0
+        """
+        Determine if this expert can handle the query.
 
-        # Check for risk-related keywords
-        risk_keywords = [
-            'risk', 'ریسک', 'danger', 'خطر', 'warning', 'هشدار', 'problem', 'مشکل',
-            'issue', 'concern', 'نگرانی', 'threat', 'تهدید', 'vulnerability', 'آسیب‌پذیری',
-            'at risk', 'failing', 'delayed', 'تاخیر', 'lost', 'از دست رفته'
-        ]
-
-        for keyword in risk_keywords:
-            if keyword in query_lower:
-                score += 0.15
-
-        # Check for risk-related patterns
-        risk_patterns = [
-            r'\bwhat.*risk\b',
-            r'\bcheck.*risk\b',
-            r'\brisk.*assessment\b',
-            r'\bidentify.*problem\b'
-        ]
-
-        for pattern in risk_patterns:
-            if re.search(pattern, query_lower):
-                score += 0.2
-
-        # Context boost
-        if context and context.get('check_risks'):
-            score += 0.3
-
-        return min(score, 1.0)
+        Uses centralized KeywordMatcher for consistent scoring.
+        """
+        matcher = self._get_keyword_matcher()
+        return matcher.calculate_score(query, context)
 
     async def analyze(self, query: str, context: Dict[str, Any] = None) -> ExpertResult:
         """Perform risk assessment"""

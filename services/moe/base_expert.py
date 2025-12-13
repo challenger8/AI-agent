@@ -1,7 +1,8 @@
 """
 services/moe/base_expert.py
 ---------------------------
-Abstract base class for all experts in the Mixture of Experts system
+Abstract base class for all experts in the Mixture of Experts system.
+REFACTORED: Uses centralized KeywordMatcher and DealIdExtractor.
 """
 
 from abc import ABC, abstractmethod
@@ -11,8 +12,8 @@ from datetime import datetime
 
 from utils.logging_config import get_logger
 from utils.exceptions import ServiceError
+from utils.keyword_matcher import KeywordMatcher, DealIdExtractor
 from config.constants import ConfidenceConfig
-import re
 
 @dataclass
 class ExpertResult:
@@ -328,46 +329,26 @@ class BaseExpert(ABC):
         return f"{self.__class__.__name__}(type={self.expert_type})"
     def _extract_deal_id(self, query: str, context: Dict[str, Any] = None) -> Optional[str]:
         """
-        Extract deal ID from query or context
-        
-        Supports:
-        - Context with deal_id key
-        - English patterns: "deal 123", "deal-123", "deal_123"
-        - Persian patterns: "دیل 123", "دیل-123"
-        - Fallback: any number in query
-        
+        Extract deal ID from query or context.
+
+        Uses centralized DealIdExtractor utility.
+
         Args:
             query: User query string
             context: Optional context dict
-            
+
         Returns:
             Deal ID string or None if not found
         """
-        context = context or {}
-        
-        # Check context first (highest priority)
-        if context.get('deal_id'):
-            return str(context['deal_id'])
-        
-        # Pattern matching (ordered by specificity)
-        patterns = [
-            r'\bdeal[\s_-]?(\d+)\b',      # English: deal123, deal-123
-            r'\bدیل[\s_-]?(\d+)\b',        # Persian: دیل123
-            r'\bقرارداد[\s_-]?(\d+)\b',    # Persian: قرارداد123
-            r'\bmعامله[\s_-]?(\d+)\b',     # Persian: معامله123
-        ]
-        
-        query_lower = query.lower()
-        for pattern in patterns:
-            match = re.search(pattern, query_lower, re.IGNORECASE)
-            if match:
-                return match.group(1)
-        
-        # Fallback: standalone number (only if query seems deal-related)
-        deal_indicators = ['deal', 'دیل', 'قرارداد', 'معامله', 'analyze', 'تحلیل']
-        if any(indicator in query_lower for indicator in deal_indicators):
-            fallback_match = re.search(r'\b(\d+)\b', query)
-            if fallback_match:
-                return fallback_match.group(1)
-        
-        return None
+        return DealIdExtractor.extract(query, context)
+
+    def _get_keyword_matcher(self) -> KeywordMatcher:
+        """
+        Get keyword matcher for this expert type.
+
+        Uses centralized KeywordMatcher utility.
+
+        Returns:
+            KeywordMatcher configured for this expert
+        """
+        return KeywordMatcher.for_expert(self.expert_type)

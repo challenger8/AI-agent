@@ -1,15 +1,17 @@
 """
 services/moe/experts/activity_expert.py
 ---------------------------------------
-Expert for activity summarization and trends
+Expert for activity summarization and trends.
+REFACTORED: Uses centralized utilities for DRY code.
 """
 
-import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 from ..base_expert import BaseExpert, ExpertResult
 from config.moe_settings import MoESettings
+from utils.activity_utils import ActivityUtils
+from utils.date_utils import DateUtils
 
 
 class ActivityExpert(BaseExpert):
@@ -28,38 +30,13 @@ class ActivityExpert(BaseExpert):
         return ['activity', 'timeline', 'history', 'trend']
 
     def can_handle(self, query: str, context: Dict[str, Any] = None) -> float:
-        """Determine if this expert can handle the query"""
-        query_lower = query.lower()
-        score = 0.0
+        """
+        Determine if this expert can handle the query.
 
-        # Check for activity-related keywords
-        activity_keywords = [
-            'activity', 'فعالیت', 'timeline', 'جدول زمانی', 'history', 'تاریخچه',
-            'recent', 'اخیر', 'last', 'آخرین', 'trend', 'روند', 'summary', 'خلاصه',
-            'what happened', 'چه اتفاقی', 'updates', 'بروزرسانی'
-        ]
-
-        for keyword in activity_keywords:
-            if keyword in query_lower:
-                score += 0.15
-
-        # Check for time-related patterns
-        time_patterns = [
-            r'\blast\s+\d+\s+days?\b',
-            r'\brecent\b',
-            r'\bthis\s+week\b',
-            r'\bthis\s+month\b'
-        ]
-
-        for pattern in time_patterns:
-            if re.search(pattern, query_lower):
-                score += 0.1
-
-        # Context boost
-        if context and context.get('entity_type') == 'activity':
-            score += 0.2
-
-        return min(score, 1.0)
+        Uses centralized KeywordMatcher for consistent scoring.
+        """
+        matcher = self._get_keyword_matcher()
+        return matcher.calculate_score(query, context)
 
     async def analyze(self, query: str, context: Dict[str, Any] = None) -> ExpertResult:
         """Perform activity analysis"""
@@ -152,7 +129,7 @@ class ActivityExpert(BaseExpert):
         try:
             # Get days from context or default
             days = context.get('days', 30)
-            cutoff_date = datetime.now() - timedelta(days=days)
+            cutoff_date = DateUtils.get_cutoff_date(days)
 
             with self.repositories as uow:
                 # Get recent activities
@@ -165,25 +142,16 @@ class ActivityExpert(BaseExpert):
                     'message': 'No activities found'
                 }
 
-            # Filter by date
+            # Filter by date using DateUtils
             recent_activities = []
             for activity in all_activities:
-                activity_dict = activity.to_dict() if hasattr(activity, 'to_dict') else activity
-                add_time = activity_dict.get('add_time')
-                if add_time:
-                    try:
-                        if isinstance(add_time, str):
-                            activity_date = datetime.fromisoformat(add_time.replace('Z', '+00:00'))
-                        else:
-                            activity_date = add_time
-                        if activity_date >= cutoff_date:
-                            recent_activities.append(activity)
-                    except (ValueError, TypeError):
-                        pass
+                activity_date = ActivityUtils.get_activity_date(activity)
+                if activity_date and activity_date >= cutoff_date:
+                    recent_activities.append(activity)
 
-            # Calculate summary
-            activity_types = self._count_activity_types(recent_activities)
-            frequency = self._calculate_frequency(recent_activities)
+            # Calculate summary using ActivityUtils
+            activity_types = ActivityUtils.count_by_type(recent_activities)
+            frequency = ActivityUtils.calculate_frequency(recent_activities)
 
             return {
                 'total_activities': len(recent_activities),
@@ -197,46 +165,20 @@ class ActivityExpert(BaseExpert):
             return {'error': str(e)}
 
     def _calculate_frequency(self, activities: List) -> Dict[str, Any]:
-        """Calculate activity frequency"""
-        if not activities:
-            return {'status': 'no_data'}
+        """
+        Calculate activity frequency.
 
-        # Count by day
-        daily_counts = {}
-        for activity in activities:
-            activity_dict = activity.to_dict() if hasattr(activity, 'to_dict') else activity
-            add_time = activity_dict.get('add_time', '')
-            if add_time:
-                try:
-                    if isinstance(add_time, str):
-                        date_str = add_time[:10]
-                    else:
-                        date_str = add_time.strftime('%Y-%m-%d')
-                    daily_counts[date_str] = daily_counts.get(date_str, 0) + 1
-                except (ValueError, AttributeError):
-                    pass
-
-        if not daily_counts:
-            return {'status': 'no_dated_activities'}
-
-        avg_per_day = sum(daily_counts.values()) / len(daily_counts)
-        max_day = max(daily_counts.items(), key=lambda x: x[1]) if daily_counts else (None, 0)
-
-        return {
-            'average_per_day': round(avg_per_day, 2),
-            'busiest_day': max_day[0],
-            'busiest_day_count': max_day[1],
-            'total_days_with_activity': len(daily_counts)
-        }
+        Uses centralized ActivityUtils for consistent calculation.
+        """
+        return ActivityUtils.calculate_frequency(activities)
 
     def _count_activity_types(self, activities: List) -> Dict[str, int]:
-        """Count activities by type"""
-        type_counts = {}
-        for activity in activities:
-            activity_dict = activity.to_dict() if hasattr(activity, 'to_dict') else activity
-            activity_type = activity_dict.get('type', 'unknown')
-            type_counts[activity_type] = type_counts.get(activity_type, 0) + 1
-        return type_counts
+        """
+        Count activities by type.
+
+        Uses centralized ActivityUtils for consistent counting.
+        """
+        return ActivityUtils.count_by_type(activities)
 
     @property
     def confidence_boost_keys(self) -> List[str]:

@@ -1,11 +1,11 @@
 """
 services/moe/experts/deal_analysis_expert.py
 --------------------------------------------
-Expert for deal health analysis and insights
+Expert for deal health analysis and insights.
+REFACTORED: Uses centralized KeywordMatcher for can_handle().
 """
 
-import re
-from typing import Any, Dict,List
+from typing import Any, Dict, List
 
 from ..base_expert import BaseExpert, ExpertResult
 from config.moe_settings import MoESettings
@@ -27,29 +27,13 @@ class DealAnalysisExpert(BaseExpert):
         return ['deal_analysis', 'performance', 'health']
 
     def can_handle(self, query: str, context: Dict[str, Any] = None) -> float:
-        """Determine if this expert can handle the query"""
-        query_lower = query.lower()
-        score = 0.0
+        """
+        Determine if this expert can handle the query.
 
-        # Check for deal-related keywords
-        deal_keywords = [
-            'deal', 'معامله', 'قرارداد', 'health', 'سلامت', 'score', 'امتیاز',
-            'analyze', 'تحلیل', 'performance', 'عملکرد', 'status', 'وضعیت'
-        ]
-
-        for keyword in deal_keywords:
-            if keyword in query_lower:
-                score += 0.15
-
-        # Check for deal ID pattern
-        if re.search(r'\bdeal[\s_-]?\d+\b|\bدیل[\s_-]?\d+\b', query_lower):
-            score += 0.3
-
-        # Context boost
-        if context and context.get('entity_type') == 'deal':
-            score += 0.2
-
-        return min(score, 1.0)
+        Uses centralized KeywordMatcher for consistent scoring.
+        """
+        matcher = self._get_keyword_matcher()
+        return matcher.calculate_score(query, context)
 
     async def analyze(self, query: str, context: Dict[str, Any] = None) -> ExpertResult:
         """Perform deal analysis"""

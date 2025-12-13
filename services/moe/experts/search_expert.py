@@ -1,11 +1,11 @@
 """
 services/moe/experts/search_expert.py
 -------------------------------------
-Expert for semantic search using RAG/CAG
+Expert for semantic search using RAG/CAG.
+REFACTORED: Uses centralized KeywordMatcher for can_handle().
 """
 
-import re
-from typing import Any, Dict,List
+from typing import Any, Dict, List
 
 from ..base_expert import BaseExpert, ExpertResult
 from config.moe_settings import MoESettings
@@ -27,41 +27,14 @@ class SearchExpert(BaseExpert):
         return ['search', 'find', 'query', 'lookup']
 
     def can_handle(self, query: str, context: Dict[str, Any] = None) -> float:
-        """Determine if this expert can handle the query"""
-        query_lower = query.lower()
-        score = 0.0
+        """
+        Determine if this expert can handle the query.
 
-        # Check for search-related keywords
-        search_keywords = [
-            'find', 'پیدا', 'search', 'جستجو', 'look', 'گشتن', 'query', 'پرس‌وجو',
-            'where', 'کجا', 'which', 'کدام', 'related', 'مرتبط', 'similar', 'مشابه',
-            'show me', 'نشان بده', 'list', 'لیست', 'get', 'بگیر'
-        ]
-
-        for keyword in search_keywords:
-            if keyword in query_lower:
-                score += 0.15
-
-        # Check for question patterns
-        question_patterns = [
-            r'^(what|where|which|who|how)\s',
-            r'^(چه|کجا|کدام|چگونه)\s',
-            r'\?$'
-        ]
-
-        for pattern in question_patterns:
-            if re.search(pattern, query_lower):
-                score += 0.1
-
-        # Context boost
-        if context and context.get('search_mode'):
-            score += 0.3
-
-        # Default expert boost (search is often the fallback)
-        if score < 0.3:
-            score = 0.3  # Minimum score for search
-
-        return min(score, 1.0)
+        Uses centralized KeywordMatcher for consistent scoring.
+        Search expert has a minimum score of 0.3 (fallback expert).
+        """
+        matcher = self._get_keyword_matcher()
+        return matcher.calculate_score(query, context)
 
     async def analyze(self, query: str, context: Dict[str, Any] = None) -> ExpertResult:
         """Perform semantic search"""

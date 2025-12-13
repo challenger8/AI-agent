@@ -23,46 +23,7 @@ class BaseService(ABC):
         self.repositories = repositories
         self.logger = get_logger(self.__class__.__name__)
         self._cache = {}
-    async def _safe_initialize(
-        self,
-        init_func,
-        service_name: str = None,
-        *args,
-        **kwargs
-    ) -> bool:
-        """
-        Safely execute async initialization with logging and error handling.
-        
-        Args:
-            init_func: Async function to execute for initialization
-            service_name: Name of service (defaults to class name)
-            *args, **kwargs: Arguments to pass to init_func
-            
-        Returns:
-            True on success, False on failure (does not raise)
-            
-        Usage:
-            async def initialize(self):
-                await self._safe_initialize(
-                    self._do_initialize,
-                    service_name="Embedding"
-                )
-            
-            async def _do_initialize(self):
-                # Actual initialization code here
-                self.model = load_model()
-        """
-        service_name = service_name or self.__class__.__name__
-        
-        try:
-            self.logger.info(f"Initializing {service_name}...")
-            await init_func(*args, **kwargs)
-            self.logger.info(f"{service_name} initialized successfully")
-            return True
-        except Exception as e:
-            self.logger.error(f"{service_name} initialization failed: {e}")
-            # Don't raise - let service decide how to handle
-            return False
+
     def _validate_required_fields(self, data: Dict[str, Any], required_fields: list) -> None:
         """
         Validate that required fields are present in data
