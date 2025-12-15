@@ -181,8 +181,7 @@ class AnalyticsService(BaseService):
             return result
             
         except Exception as e:
-            self.logger.error(f"Error in portfolio overview: {e}")
-            return {"error": str(e)}
+            return self._handle_error("portfolio overview", e)
 
 
     def invalidate_deal_cache(self, deal_id: str) -> bool:
@@ -205,8 +204,7 @@ class AnalyticsService(BaseService):
             self.logger.info(f"Invalidated cache for deal {deal_id}")
             return deleted
         except Exception as e:
-            self.logger.error(f"Error invalidating cache: {e}")
-            return False
+            return self._handle_error("invalidating cache", e, return_dict=False)
 
 
     def clear_analytics_cache(self) -> int:
@@ -218,8 +216,7 @@ class AnalyticsService(BaseService):
             self.logger.info(f"Cleared analytics cache: {deleted} keys")
             return deleted
         except Exception as e:
-            self.logger.error(f"Error clearing cache: {e}")
-            return 0
+            return self._handle_error("clearing cache", e, return_dict=False) or 0
     def analyze_deal_comprehensive(self, deal_id: str) -> Dict[str, Any]:
         """
         Comprehensive deal analysis - orchestrates all specialists.
@@ -295,8 +292,7 @@ class AnalyticsService(BaseService):
             return result
             
         except Exception as e:
-            self.logger.error(f"Error analyzing deal {deal_id}: {e}")
-            raise ServiceError(f"Failed to analyze deal: {e}")
+            return self._handle_error("analyzing deal", e, raise_error=True)
     
     def _analyze_sentiment(self, activities: List[Any]) -> Dict[str, Any]:
         """Delegate sentiment analysis"""
