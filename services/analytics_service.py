@@ -24,21 +24,47 @@ from utils.exceptions import ServiceError
 class AnalyticsService(BaseService):
     """
     Analytics orchestrator - coordinates specialist services.
-    
-    REFACTORED: Delegates to single-responsibility classes.
+
+    REFACTORED: Uses dependency injection for better testability and SOLID compliance.
     This class is now a thin coordinator, NOT a God Class!
     """
-    
-    def __init__(self, repositories=None, sentiment_service=None):
+
+    def __init__(
+        self,
+        repositories=None,
+        sentiment_service=None,
+        deal_service: Optional[DealService] = None,
+        cache_service=None,
+        health_calculator: Optional[HealthCalculator] = None,
+        risk_analyzer: Optional[RiskAnalyzer] = None,
+        recommendation_engine: Optional[RecommendationEngine] = None,
+        insight_generator: Optional[InsightGenerator] = None
+    ):
+        """
+        Initialize AnalyticsService with dependency injection.
+
+        Args:
+            repositories: Database repositories
+            sentiment_service: Sentiment analysis service
+            deal_service: Deal service (injected, created if None)
+            cache_service: Cache service (injected, created if None)
+            health_calculator: Health calculator specialist (injected, created if None)
+            risk_analyzer: Risk analyzer specialist (injected, created if None)
+            recommendation_engine: Recommendation engine (injected, created if None)
+            insight_generator: Insight generator (injected, created if None)
+        """
         super().__init__(repositories)
-        self.deal_service = DealService(repositories)
+
+        # Inject or create dependencies (Dependency Inversion Principle)
+        self.deal_service = deal_service or DealService(repositories)
         self.sentiment_service = sentiment_service
-        self.cache_service = get_two_level_cache(l1_size=100)
-        # Initialize specialists
-        self.health_calculator = HealthCalculator(self.deal_service)
-        self.risk_analyzer = RiskAnalyzer(self.deal_service)
-        self.recommendation_engine = RecommendationEngine()
-        self.insight_generator = InsightGenerator()
+        self.cache_service = cache_service or get_two_level_cache(l1_size=100)
+
+        # Inject or create specialists
+        self.health_calculator = health_calculator or HealthCalculator(self.deal_service)
+        self.risk_analyzer = risk_analyzer or RiskAnalyzer(self.deal_service)
+        self.recommendation_engine = recommendation_engine or RecommendationEngine()
+        self.insight_generator = insight_generator or InsightGenerator()
     def _calculate_health_score(
         self, 
         deal: Dict[str, Any], 

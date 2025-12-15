@@ -54,3 +54,99 @@ class RepositoryConfig:
 
     # Common excluded fields for updates
     EXCLUDE_TIMESTAMP_FIELDS = ['created_at', 'updated_at', 'last_update_time']
+
+
+class HealthCategory:
+    """Health category constants (English keys for code, Persian values for UI)"""
+    HEALTHY = 'healthy'
+    MEDIUM = 'medium'
+    AT_RISK = 'at_risk'
+
+    # Persian translations
+    TRANSLATIONS = {
+        'healthy': 'سالم',
+        'medium': 'متوسط',
+        'at_risk': 'در خطر'
+    }
+
+    @classmethod
+    def translate(cls, key: str) -> str:
+        """Get Persian translation for category key"""
+        return cls.TRANSLATIONS.get(key, key)
+
+
+class RiskSeverity:
+    """Risk severity levels (English keys for code, Persian values for UI)"""
+    CRITICAL = 'critical'
+    HIGH = 'high'
+    MEDIUM = 'medium'
+    LOW = 'low'
+
+    # Persian translations
+    TRANSLATIONS = {
+        'critical': 'بحرانی',
+        'high': 'بالا',
+        'medium': 'متوسط',
+        'low': 'پایین'
+    }
+
+    @classmethod
+    def translate(cls, key: str) -> str:
+        """Get Persian translation for severity key"""
+        return cls.TRANSLATIONS.get(key, key)
+
+
+class RiskType:
+    """Risk type constants (English keys for code, Persian descriptions for UI)"""
+    LOW_HEALTH_SCORE = 'low_health_score'
+    CRITICAL_INACTIVITY = 'critical_inactivity'
+    HIGH_INACTIVITY = 'high_inactivity'
+    MODERATE_INACTIVITY = 'moderate_inactivity'
+    NO_ACTIVITY = 'no_activity'
+    DEAL_AGING = 'deal_aging'
+
+    # Persian descriptions
+    DESCRIPTIONS = {
+        'low_health_score': 'امتیاز سلامت پایین',
+        'critical_inactivity': 'عدم فعالیت بحرانی',
+        'high_inactivity': 'عدم فعالیت بالا',
+        'moderate_inactivity': 'عدم فعالیت متوسط',
+        'no_activity': 'هیچ فعالیتی ثبت نشده',
+        'deal_aging': 'معامله قدیمی'
+    }
+
+    @classmethod
+    def describe(cls, risk_type: str) -> str:
+        """Get Persian description for risk type"""
+        return cls.DESCRIPTIONS.get(risk_type, risk_type)
+
+
+class RecommendationType:
+    """Recommendation constants (English keys for code, Persian for UI)"""
+    IMMEDIATE_REVIEW = 'immediate_review'
+    URGENT_FOLLOWUP = 'urgent_followup'
+    SCHEDULE_ACTIVITY = 'schedule_activity'
+    REVIEW_COMMUNICATIONS = 'review_communications'
+    UPDATE_TIMELINE = 'update_timeline'
+    CONTINUE_MONITORING = 'continue_monitoring'
+    START_ENGAGEMENT = 'start_engagement'
+    REASSESS_SUCCESS = 'reassess_success'
+    REVIEW_OBSTACLES = 'review_obstacles'
+
+    # Persian translations
+    TRANSLATIONS = {
+        'immediate_review': 'بازبینی فوری استراتژی معامله',
+        'urgent_followup': 'پیگیری اضطراری',
+        'schedule_activity': 'برنامه‌ریزی جلسه',
+        'review_communications': 'بررسی ارتباطات و رفع نگرانی‌ها',
+        'update_timeline': 'بروزرسانی جدول زمانی و اطلاع‌رسانی',
+        'continue_monitoring': 'ادامه نظارت - خطر بحرانی شناسایی نشد',
+        'start_engagement': 'شروع فوری تعامل با مشتری',
+        'reassess_success': 'ارزیابی مجدد احتمال موفقیت',
+        'review_obstacles': 'بررسی موانع پیشرفت'
+    }
+
+    @classmethod
+    def translate(cls, key: str) -> str:
+        """Get Persian translation for recommendation"""
+        return cls.TRANSLATIONS.get(key, key)
