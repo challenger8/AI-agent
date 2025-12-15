@@ -59,7 +59,7 @@ def test_services_creation():
         from services.deal_service import DealService
         from services.sentiment_service import SentimentService
         from services.analytics_service import AnalyticsService
-        from services.cache_service import get_cache_service
+        from services.cache import get_cache_service
         
         # Create database and repositories
         db = create_database_manager()
@@ -228,7 +228,7 @@ def test_cache_service():
     print("="*60)
     
     try:
-        from services.cache_service import get_cache_service
+        from services.cache import get_cache_service
         
         cache = get_cache_service()
         print(f"   Cache enabled: {cache.enabled}")

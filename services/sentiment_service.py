@@ -7,7 +7,7 @@ Sentiment analysis service for Persian text using Qwen2 with prompts
 import asyncio
 from typing import Dict, List, Any, Optional
 from collections import defaultdict
-from services.cache_service import get_cache_service, CacheService
+from services.cache import get_cache_service, CacheService
 from services.cache_strategies import CacheTTLStrategy
 from services.cache.base_cache import CacheKeyBuilder
 

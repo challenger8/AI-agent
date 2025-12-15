@@ -9,9 +9,9 @@ from typing import Dict, List, Any, Optional
 
 from services.base_service import BaseService
 from services.deal_service import DealService
-from services.cache_service import get_cache_service
+from services.cache import get_cache_service
 from services.cache_strategies import CacheTTLStrategy
-from services.cache_service import get_two_level_cache
+from services.cache import get_two_level_cache
 from services.cache.base_cache import CacheKeyBuilder
 # Import specialists
 from .analytics.health_calculator import HealthCalculator

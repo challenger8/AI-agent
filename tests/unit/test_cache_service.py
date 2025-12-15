@@ -6,7 +6,7 @@ Unit tests for CacheService
 
 import pytest
 from datetime import timedelta
-from services.cache_service import CacheService, get_cache_service
+from services.cache import CacheService, get_cache_service
 from services.cache.base_cache import CacheKeyBuilder
 
 @pytest.mark.unit

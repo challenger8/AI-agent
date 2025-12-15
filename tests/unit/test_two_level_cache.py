@@ -5,7 +5,7 @@ Tests for two-level caching system
 """
 
 import pytest
-from services.cache_service import CacheService, TwoLevelCache
+from services.cache import CacheService, TwoLevelCache
 
 
 @pytest.mark.unit

@@ -184,7 +184,7 @@ class TestCachingIntegration:
         """Test that analytics results are cached"""
         from services.analytics_service import AnalyticsService
         from services.sentiment_service import SentimentService
-        from services.cache_service import get_cache_service
+        from services.cache import get_cache_service
         
         # Create deal and activities
         test_repositories.deals.create_deal(sample_deal)
@@ -214,7 +214,7 @@ class TestCachingIntegration:
     async def test_sentiment_results_cached(self, test_repositories):
         """Test that sentiment analysis results are cached"""
         from services.sentiment_service import SentimentService
-        from services.cache_service import get_cache_service
+        from services.cache import get_cache_service
         
         sentiment_service = SentimentService(test_repositories)
         cache = get_cache_service()

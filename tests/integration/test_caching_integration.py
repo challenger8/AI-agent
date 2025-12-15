@@ -12,7 +12,7 @@ from database.database import create_database_manager
 from models.repositories import create_repositories
 from services.sentiment_service import SentimentService
 from services.analytics_service import AnalyticsService
-from services.cache_service import get_cache_service
+from services.cache import get_cache_service
 
 @pytest.mark.integration
 @pytest.fixture(scope="module")

@@ -28,7 +28,7 @@ from models.deal_model import Deal, DealActivity, CRMAgent
 from services.deal_service import DealService
 from services.sentiment_service import SentimentService
 from services.analytics_service import AnalyticsService
-from services.cache_service import get_cache_service
+from services.cache import get_cache_service
 from tests.conftest import (
     check_database_available,
     check_redis_available,
