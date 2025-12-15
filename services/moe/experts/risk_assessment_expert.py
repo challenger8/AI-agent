@@ -119,7 +119,7 @@ class RiskAssessmentExpert(BaseExpert):
 
     async def _assess_portfolio_risks(self) -> Dict[str, Any]:
         """Assess risks across the entire portfolio"""
-        # Get deal service
+        # Get and validate services
         deal_service = self.services.get('deal')
         analytics_service = self.services.get('analytics')
 
@@ -131,61 +131,134 @@ class RiskAssessmentExpert(BaseExpert):
             deals = deal_service.get_all_deals()
 
             if not deals:
-                return {
-                    'total_deals': 0,
-                    'message': 'No deals found'
-                }
+                return {'total_deals': 0, 'message': 'No deals found'}
 
-            # Categorize by risk
-            high_risk = []
-            medium_risk = []
-            low_risk = []
+            # Categorize deals by risk level
+            risk_categories = self._categorize_deals_by_risk(deals, analytics_service)
 
-            for deal in deals[:RiskAnalysisConfig.MAX_DEALS_TO_ANALYZE]:  # Limit for performance
-                deal_id = deal.get('id')
-                if not deal_id:
-                    continue
-
-                try:
-                    analysis = analytics_service.analyze_deal_comprehensive(str(deal_id))
-                    health_score = analysis.get('health_score', 50)
-
-                    if health_score < AnalysisSettings.HEALTH_MEDIUM_THRESHOLD:
-                        high_risk.append({
-                            'deal_id': deal_id,
-                            'health_score': health_score,
-                            'risks': analysis.get('risk_indicators', [])
-                        })
-                    elif health_score < AnalysisSettings.HEALTH_HIGH_THRESHOLD:
-                        medium_risk.append({
-                            'deal_id': deal_id,
-                            'health_score': health_score
-                        })
-                    else:
-                        low_risk.append({
-                            'deal_id': deal_id,
-                            'health_score': health_score
-                        })
-                except Exception:
-                    pass
-
-            # Calculate overall risk metrics
-            total_analyzed = len(high_risk) + len(medium_risk) + len(low_risk)
-            high_risk_percentage = (len(high_risk) / total_analyzed * 100) if total_analyzed > 0 else 0
-
-            return {
-                'total_deals_analyzed': total_analyzed,
-                'high_risk_deals': high_risk,
-                'high_risk_count': len(high_risk),
-                'medium_risk_count': len(medium_risk),
-                'low_risk_count': len(low_risk),
-                'high_risk_percentage': round(high_risk_percentage, 1),
-                'risk_summary': self._generate_portfolio_risk_summary(high_risk, total_analyzed),
-                'priority_actions': self._generate_priority_actions(high_risk)
-            }
+            # Build and return risk analysis
+            return self._build_portfolio_risk_result(risk_categories)
 
         except Exception as e:
             return {'error': str(e)}
+
+    def _categorize_deals_by_risk(
+        self,
+        deals: List[Dict[str, Any]],
+        analytics_service: Any
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Categorize deals into risk levels based on health scores.
+
+        Args:
+            deals: List of deals to analyze
+            analytics_service: Analytics service for deal analysis
+
+        Returns:
+            Dictionary with 'high_risk', 'medium_risk', 'low_risk' lists
+        """
+        categories = {
+            'high_risk': [],
+            'medium_risk': [],
+            'low_risk': []
+        }
+
+        # Analyze limited number of deals for performance
+        for deal in deals[:RiskAnalysisConfig.MAX_DEALS_TO_ANALYZE]:
+            deal_id = deal.get('id')
+            if not deal_id:
+                continue
+
+            # Categorize deal by health score
+            category_entry = self._analyze_and_categorize_deal(
+                str(deal_id),
+                analytics_service
+            )
+
+            if category_entry:
+                risk_level = category_entry['risk_level']
+                categories[f'{risk_level}_risk'].append(category_entry['data'])
+
+        return categories
+
+    def _analyze_and_categorize_deal(
+        self,
+        deal_id: str,
+        analytics_service: Any
+    ) -> Dict[str, Any] | None:
+        """
+        Analyze a single deal and determine its risk category.
+
+        Args:
+            deal_id: Deal identifier
+            analytics_service: Analytics service
+
+        Returns:
+            Dictionary with risk_level and data, or None if analysis failed
+        """
+        try:
+            analysis = analytics_service.analyze_deal_comprehensive(deal_id)
+            health_score = analysis.get('health_score', 50)
+
+            # Determine risk level
+            if health_score < AnalysisSettings.HEALTH_MEDIUM_THRESHOLD:
+                return {
+                    'risk_level': 'high',
+                    'data': {
+                        'deal_id': deal_id,
+                        'health_score': health_score,
+                        'risks': analysis.get('risk_indicators', [])
+                    }
+                }
+            elif health_score < AnalysisSettings.HEALTH_HIGH_THRESHOLD:
+                return {
+                    'risk_level': 'medium',
+                    'data': {
+                        'deal_id': deal_id,
+                        'health_score': health_score
+                    }
+                }
+            else:
+                return {
+                    'risk_level': 'low',
+                    'data': {
+                        'deal_id': deal_id,
+                        'health_score': health_score
+                    }
+                }
+        except Exception:
+            return None
+
+    def _build_portfolio_risk_result(
+        self,
+        risk_categories: Dict[str, List[Dict[str, Any]]]
+    ) -> Dict[str, Any]:
+        """
+        Build final portfolio risk assessment result.
+
+        Args:
+            risk_categories: Categorized deals by risk level
+
+        Returns:
+            Portfolio risk analysis dictionary
+        """
+        high_risk = risk_categories['high_risk']
+        medium_risk = risk_categories['medium_risk']
+        low_risk = risk_categories['low_risk']
+
+        total_analyzed = len(high_risk) + len(medium_risk) + len(low_risk)
+        high_risk_percentage = (len(high_risk) / total_analyzed * 100) if total_analyzed > 0 else 0
+
+        return {
+            'total_deals_analyzed': total_analyzed,
+            'high_risk_deals': high_risk,
+            'high_risk_count': len(high_risk),
+            'medium_risk_count': len(medium_risk),
+            'low_risk_count': len(low_risk),
+            'high_risk_percentage': round(high_risk_percentage, 1),
+            'risk_summary': self._generate_portfolio_risk_summary(high_risk, total_analyzed),
+            'priority_actions': self._generate_priority_actions(high_risk)
+        }
 
     def _calculate_risk_level(self, health_score: int, risk_indicators: List[str]) -> str:
         """Calculate risk level based on health score and indicators"""

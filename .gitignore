@@ -251,6 +251,9 @@ nginx/
 cache/
 .cache/
 
+# Exception: services/cache directory should be tracked
+!services/cache/
+
 # Build artifacts
 build/
 dist/
