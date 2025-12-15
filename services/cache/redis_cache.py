@@ -339,45 +339,6 @@ class CacheService:
             return 0.0
         return round((hits / total) * 100, 2)
 
-    @staticmethod
-    def generate_key(*parts: str) -> str:
-        """
-        Generate cache key from parts.
-
-        DEPRECATED: Use CacheKeyBuilder.build() instead.
-        Maintained for backward compatibility.
-
-        Args:
-            *parts: Key parts to join
-
-        Returns:
-            Formatted cache key
-
-        Example:
-            generate_key("sentiment", "text", "abc123")
-            -> "sentiment:text:abc123"
-        """
-        if not parts:
-            return ""
-        # Use CacheKeyBuilder for consistency
-        prefix = str(parts[0]) if parts else ""
-        remaining = parts[1:] if len(parts) > 1 else ()
-        return CacheKeyBuilder.build(prefix, *remaining) if parts else ""
-
-    @staticmethod
-    def hash_text(text: str) -> str:
-        """
-        Generate hash for text (useful for cache keys).
-        Delegates to CacheKeyBuilder.for_text().
-
-        Args:
-            text: Text to hash
-
-        Returns:
-            MD5 hash of text
-        """
-        return CacheKeyBuilder.for_text(text)
-
     @require_redis(default_return=None)
     def increment(self, key: str, amount: int = 1) -> Optional[int]:
         """

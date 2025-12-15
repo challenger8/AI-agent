@@ -221,31 +221,6 @@ class MemoryCache(BaseCacheInterface):
         """Reset statistics"""
         self._stats.reset()
 
-    # Key generation methods (for compatibility)
-    @staticmethod
-    def generate_key(*args, **kwargs) -> str:
-        """
-        Generate cache key.
-
-        DEPRECATED: Use CacheKeyBuilder.build() instead.
-        Maintained for backward compatibility.
-        """
-        return CacheKeyBuilder.build("cache", *args, **kwargs)
-
-    @staticmethod
-    def hash_text(text: str) -> str:
-        """Generate hash for text"""
-        return CacheKeyBuilder.for_text(text)
-
-
-class LRUCache(MemoryCache):
-    """
-    Alias for MemoryCache.
-
-    Provides backward compatibility with existing code.
-    """
-    pass
-
 
 # Factory function for creating cache instances
 def create_memory_cache(

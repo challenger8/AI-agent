@@ -141,8 +141,8 @@ class OptimizedVectorStoreQuery:
                     include=['embeddings', 'metadatas', 'documents', 'distances']
                 )
                 
-                # Format results
-                formatted_results = self._format_results(results)
+                # Format results using utility directly
+                formatted_results = SearchResultFormatter.format_chromadb_results(results)
                 
                 # Update stats
                 elapsed = (datetime.now() - start_time).total_seconds()
@@ -157,14 +157,6 @@ class OptimizedVectorStoreQuery:
         except Exception as e:
             self.logger.error(f"Search query failed: {e}")
             return []
-    
-    def _format_results(self, raw_results: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        Format raw ChromaDB results.
-
-        REFACTORED: Uses SearchResultFormatter.format_chromadb_results() (DRY)
-        """
-        return SearchResultFormatter.format_chromadb_results(raw_results)
     
     def _update_stats(self, elapsed_seconds: float):
         """Update query statistics"""

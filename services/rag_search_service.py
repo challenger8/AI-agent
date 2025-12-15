@@ -146,7 +146,7 @@ class RAGSearchService(BaseService):
         try:
             self._check_initialized()
             results = self.vector_store_service.search(query, collection_type, n_results)
-            return self._format_collection_results(results, EntityTypes.get_singular(collection_type))
+            return SearchResultFormatter.format_collection_results(results, EntityTypes.get_singular(collection_type))
         except Exception as e:
             self.logger.error(f"{collection_type} search failed: {e}")
             return []
@@ -296,22 +296,7 @@ class RAGSearchService(BaseService):
             Formatted results
         """
         return {
-            'deals': self._format_collection_results(results.get('deals', []), 'deal'),
-            'activities': self._format_collection_results(results.get('activities', []), 'activity'),
-            'agents': self._format_collection_results(results.get('agents', []), 'agent')
+            'deals': SearchResultFormatter.format_collection_results(results.get('deals', []), 'deal'),
+            'activities': SearchResultFormatter.format_collection_results(results.get('activities', []), 'activity'),
+            'agents': SearchResultFormatter.format_collection_results(results.get('agents', []), 'agent')
         }
-    
-    def _format_collection_results(self, results: List[Dict], result_type: str) -> List[Dict[str, Any]]:
-        """
-        Format individual collection results.
-
-        REFACTORED: Uses SearchResultFormatter.format_collection_results() (DRY)
-
-        Args:
-            results: Results from collection
-            result_type: Type of result ('deal', 'activity', 'agent')
-
-        Returns:
-            Formatted results
-        """
-        return SearchResultFormatter.format_collection_results(results, result_type)

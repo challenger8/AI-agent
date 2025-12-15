@@ -8,7 +8,7 @@ REFACTORED: Now uses BaseCacheInterfaceTests to eliminate duplication.
 
 import pytest
 import time
-from services.cache.memory_cache import MemoryCache, LRUCache, create_memory_cache
+from services.cache.memory_cache import MemoryCache, create_memory_cache
 from services.cache.base_cache import (
     BaseCacheInterface,
     CacheKeyBuilder,
@@ -164,33 +164,6 @@ class TestMemoryCache(BaseCacheInterfaceTests):
         assert stats['max_size'] == 100
         assert stats['hits'] == 1
         assert stats['misses'] == 1
-
-    def test_generate_key_static(self):
-        """Test static generate_key method (mem-cache-specific)"""
-        key = MemoryCache.generate_key('deal', '123')
-        assert 'deal' in key
-        assert '123' in key
-
-    def test_hash_text_static(self):
-        """Test static hash_text method (mem-cache-specific)"""
-        hash1 = MemoryCache.hash_text('test text')
-        hash2 = MemoryCache.hash_text('test text')
-        assert hash1 == hash2
-
-
-class TestLRUCache:
-    """Tests for LRUCache alias"""
-
-    def test_is_alias_for_memory_cache(self):
-        """Test LRUCache is an alias for MemoryCache"""
-        cache = LRUCache()
-        assert isinstance(cache, MemoryCache)
-
-    def test_basic_operations(self):
-        """Test basic operations work"""
-        cache = LRUCache()
-        cache.set('key', 'value')
-        assert cache.get('key') == 'value'
 
 
 class TestCreateMemoryCacheFactory:

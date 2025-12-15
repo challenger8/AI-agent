@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional
 from collections import defaultdict
 from services.cache_service import get_cache_service, CacheService
 from services.cache_strategies import CacheTTLStrategy
+from services.cache.base_cache import CacheKeyBuilder
 
 from services.base_service import BaseService
 from config.settings import SentimentSettings, FeatureFlags, get_sentiment_available
@@ -99,7 +100,7 @@ class SentimentService(BaseService):
         
         # Generate cache key
         text_hash = self.cache_service.hash_text(text.strip())
-        cache_key = self.cache_service.generate_key("sentiment", text_hash)
+        cache_key = CacheKeyBuilder.build("sentiment", text_hash)
         
         # Try to get from Redis cache
         cached_result = self.cache_service.get(cache_key)
