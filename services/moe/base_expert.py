@@ -9,12 +9,34 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 from datetime import datetime
+from functools import wraps
 
 from utils.logging_config import get_logger
 from utils.exceptions import ServiceError
 from utils.mixins import CacheableMixin
 from utils.keyword_matcher import KeywordMatcher, DealIdExtractor
 from config.constants import ConfidenceConfig
+
+
+def require_repositories(func):
+    """
+    Decorator to ensure repositories are available before executing method.
+
+    Returns error dict if repositories not available, otherwise executes method.
+    Eliminates duplicate repository availability checks across expert methods.
+
+    Usage:
+        @require_repositories
+        async def my_method(self, ...):
+            # method logic here
+    """
+    @wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        if not self.repositories:
+            return {'error': 'Repositories not available'}
+        return await func(self, *args, **kwargs)
+    return wrapper
+
 
 @dataclass
 class ExpertResult:

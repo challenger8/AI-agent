@@ -8,7 +8,7 @@ REFACTORED: Uses centralized utilities for DRY code.
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
-from ..base_expert import BaseExpert, ExpertResult
+from ..base_expert import BaseExpert, ExpertResult, require_repositories
 from config.moe_settings import MoESettings
 from utils.activity_utils import ActivityUtils
 from utils.date_utils import DateUtils
@@ -76,11 +76,9 @@ class ActivityExpert(BaseExpert):
             self.logger.error(f"Activity analysis error: {e}")
             return ExpertResult.error_result(self.expert_type, str(e))
 
+    @require_repositories
     async def _analyze_deal_activities(self, deal_id: str) -> Dict[str, Any]:
         """Analyze activities for a specific deal"""
-        if not self.repositories:
-            return {'error': 'Repositories not available'}
-
         try:
             with self.repositories as uow:
                 activities = uow.activities.get_activities_by_deal(deal_id)
@@ -121,11 +119,9 @@ class ActivityExpert(BaseExpert):
         except Exception as e:
             return {'error': str(e)}
 
+    @require_repositories
     async def _analyze_all_activities(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze all activities (overview)"""
-        if not self.repositories:
-            return {'error': 'Repositories not available'}
-
         try:
             # Get days from context or default
             days = context.get('days', 30)
