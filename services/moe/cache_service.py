@@ -35,24 +35,6 @@ class CacheService(MemoryCache):
         )
         self.logger = get_logger(self.__class__.__name__)
 
-    @staticmethod
-    def generate_key(*args, **kwargs) -> str:
-        """
-        Generate cache key from arguments.
-
-        REFACTORED: Now uses CacheKeyBuilder.build() for consistency.
-        Maintains backward compatibility with existing signature.
-
-        Args:
-            *args: Positional arguments
-            **kwargs: Keyword arguments
-
-        Returns:
-            Hash key
-        """
-        # Use universal cache key builder
-        return CacheKeyBuilder.build("moe", *args, **kwargs)
-
 
 class ExpertResultCache(CacheService):
     """Specialized cache for expert results"""
@@ -77,7 +59,7 @@ class ExpertResultCache(CacheService):
             result: Expert result
             context: Query context
         """
-        key = self.generate_key(query, expert_type, context or {})
+        key = CacheKeyBuilder.build("moe", query, expert_type, context or {})
 
         # Expert-specific TTL
         ttl = MoESettings.EXPERT_TIMEOUTS.get(expert_type, self.default_ttl) * 30
@@ -102,7 +84,7 @@ class ExpertResultCache(CacheService):
         Returns:
             Cached result or None
         """
-        key = self.generate_key(query, expert_type, context or {})
+        key = CacheKeyBuilder.build("moe", query, expert_type, context or {})
         return self.get(key)
 
     def invalidate_expert(self, expert_type: str):
@@ -133,7 +115,7 @@ class RoutingCache(CacheService):
             context: Query context
             decision: Routing decision
         """
-        key = self.generate_key(query, context or {})
+        key = CacheKeyBuilder.build("moe", query, context or {})
         self.set(key, decision)
 
     def get_decision(self, query: str, context: Dict) -> Optional[Any]:
@@ -147,5 +129,5 @@ class RoutingCache(CacheService):
         Returns:
             Cached decision or None
         """
-        key = self.generate_key(query, context or {})
+        key = CacheKeyBuilder.build("moe", query, context or {})
         return self.get(key)

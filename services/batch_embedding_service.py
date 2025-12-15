@@ -252,19 +252,7 @@ class OptimizedEmbeddingService:
         except Exception as e:
             self.logger.error(f"Initialization failed: {e}")
             return False
-    
-    def _format_deal_text(self, deal: Dict[str, Any]) -> str:
-        """Format deal for embedding. Delegates to EmbeddingTextFormatter."""
-        return EmbeddingTextFormatter.format_deal(deal)
 
-    def _format_activity_text(self, activity: Dict[str, Any]) -> str:
-        """Format activity for embedding. Delegates to EmbeddingTextFormatter."""
-        return EmbeddingTextFormatter.format_activity(activity)
-
-    def _format_agent_text(self, agent: Dict[str, Any]) -> str:
-        """Format agent for embedding. Delegates to EmbeddingTextFormatter."""
-        return EmbeddingTextFormatter.format_agent(agent)
-    
     async def embed_all_data_optimized(self) -> Dict[str, Any]:
         """
         Embed all CRM data with optimized batch processing
@@ -283,15 +271,15 @@ class OptimizedEmbeddingService:
             
             # Format texts
             deal_texts = [
-                (str(d.to_dict().get('id')), self._format_deal_text(d.to_dict()))
+                (str(d.to_dict().get('id')), EmbeddingTextFormatter.format_deal(d.to_dict()))
                 for d in deals
             ]
             activity_texts = [
-                (str(a.to_dict().get('id')), self._format_activity_text(a.to_dict()))
+                (str(a.to_dict().get('id')), EmbeddingTextFormatter.format_activity(a.to_dict()))
                 for a in activities
             ]
             agent_texts = [
-                (str(ag.to_dict().get('id')), self._format_agent_text(ag.to_dict()))
+                (str(ag.to_dict().get('id')), EmbeddingTextFormatter.format_agent(ag.to_dict()))
                 for ag in agents
             ]
             
