@@ -9,6 +9,7 @@ from typing import Any, Dict
 
 from ..base_expert import BaseExpert, ExpertResult
 from config.moe_settings import MoESettings
+from utils.sentiment_utils import SentimentNormalizer
 
 
 class SentimentExpert(BaseExpert):
@@ -70,18 +71,9 @@ class SentimentExpert(BaseExpert):
 
             confidence = self.calculate_confidence(query, result)
 
-            # Map sentiment to emoji for display
+            # Normalize sentiment using centralized utility (DRY)
             sentiment = result.get('sentiment', 'neutral')
-            emoji_map = {
-                'positive': 'positive',
-                'مثبت': 'positive',
-                'negative': 'negative',
-                'منفی': 'negative',
-                'neutral': 'neutral',
-                'خنثی': 'neutral'
-            }
-
-            normalized_sentiment = emoji_map.get(sentiment, 'neutral')
+            normalized_sentiment = SentimentNormalizer.normalize(sentiment)
 
             return ExpertResult(
                 expert_type=self.expert_type,

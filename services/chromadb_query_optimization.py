@@ -15,6 +15,7 @@ from threading import Lock
 
 from config.rag_settings import RAGSettings
 from utils.exceptions import ServiceError
+from utils.result_formatter import SearchResultFormatter
 
 
 class ChromaDBConnectionPool:
@@ -158,20 +159,12 @@ class OptimizedVectorStoreQuery:
             return []
     
     def _format_results(self, raw_results: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Format raw ChromaDB results"""
-        formatted = []
-        
-        if raw_results['ids'] and raw_results['ids'][0]:
-            for i, doc_id in enumerate(raw_results['ids'][0]):
-                formatted.append({
-                    'id': doc_id,
-                    'text': raw_results['documents'][0][i] if raw_results['documents'] else '',
-                    'metadata': raw_results['metadatas'][0][i] if raw_results['metadatas'] else {},
-                    'distance': raw_results['distances'][0][i] if raw_results['distances'] else 0,
-                    'similarity': 1 - raw_results['distances'][0][i] if raw_results['distances'] else 0
-                })
-        
-        return formatted
+        """
+        Format raw ChromaDB results.
+
+        REFACTORED: Uses SearchResultFormatter.format_chromadb_results() (DRY)
+        """
+        return SearchResultFormatter.format_chromadb_results(raw_results)
     
     def _update_stats(self, elapsed_seconds: float):
         """Update query statistics"""

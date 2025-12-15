@@ -9,6 +9,7 @@ KISS REFACTOR: Uses context dataclasses to reduce parameter coupling
 from typing import Dict, List, Any, Union
 from config.settings import AnalysisSettings
 from utils.logging_config import get_logger
+from utils.sentiment_utils import SentimentNormalizer
 from services.analytics.context import DealAnalysisContext
 
 
@@ -150,9 +151,12 @@ class InsightGenerator:
             return []
         
         dominant = sentiment_summary.get("dominant_sentiment", "خنثی")
-        
-        if dominant in ["مثبت", "positive"]:
-            return ["😊 احساسات مثبت در تعاملات"]
-        elif dominant in ["منفی", "negative"]:
-            return ["😟 احساسات منفی - رفع نگرانی‌ها"]
+
+        # Use centralized sentiment normalizer (DRY)
+        if SentimentNormalizer.is_positive(dominant):
+            emoji = SentimentNormalizer.get_emoji('positive')
+            return [f"{emoji} احساسات مثبت در تعاملات"]
+        elif SentimentNormalizer.is_negative(dominant):
+            emoji = SentimentNormalizer.get_emoji('negative')
+            return [f"{emoji} احساسات منفی - رفع نگرانی‌ها"]
         return []

@@ -230,6 +230,52 @@ class BaseExpert(CacheableMixin, ABC):
         # Default: no postprocessing
         return result
 
+    def _handle_analysis_error(
+        self,
+        error: Any,
+        context: str = ""
+    ) -> ExpertResult:
+        """
+        Standardized error handling for expert analysis.
+
+        DRY: Eliminates duplicate error handling patterns across 5+ expert files:
+        - services/moe/experts/activity_expert.py (4 occurrences)
+        - services/moe/experts/risk_assessment_expert.py (4 occurrences)
+        - services/moe/experts/search_expert.py (2 occurrences)
+        - services/moe/experts/deal_analysis_expert.py
+        - services/moe/experts/sentiment_expert.py
+
+        Args:
+            error: Error (str, Exception, or dict with 'error' key)
+            context: Optional context string for error message
+
+        Returns:
+            ExpertResult with error details
+
+        Examples:
+            >>> expert._handle_analysis_error(ValueError("Invalid input"))
+            ExpertResult(success=False, ...)
+
+            >>> expert._handle_analysis_error({'error': 'Not found'}, "fetching data")
+            ExpertResult(success=False, ...)
+        """
+        # Extract error message from various formats
+        if isinstance(error, dict) and 'error' in error:
+            error_msg = str(error['error'])
+        elif isinstance(error, Exception):
+            error_msg = str(error)
+        else:
+            error_msg = str(error)
+
+        # Build full error message with context
+        full_message = f"{context}: {error_msg}" if context else error_msg
+
+        # Log error
+        self.logger.error(f"Expert {self.expert_type} - {full_message}")
+
+        # Return standardized error result
+        return ExpertResult.error_result(self.expert_type, full_message)
+
     async def execute(self, query: str, context: Dict[str, Any] = None) -> ExpertResult:
         """
         Execute the expert analysis with timing and error handling

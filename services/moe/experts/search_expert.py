@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 
 from ..base_expert import BaseExpert, ExpertResult
 from config.moe_settings import MoESettings
+from utils.result_formatter import SearchResultFormatter
 
 
 class SearchExpert(BaseExpert):
@@ -100,21 +101,9 @@ class SearchExpert(BaseExpert):
                     'message': 'No results found'
                 }
 
-            # Format results
-            formatted_results = []
+            # Format results using centralized formatter (DRY)
             all_results = result.get('results', {})
-
-            for result_type, items in all_results.items():
-                for item in items:
-                    formatted_results.append({
-                        'type': result_type,
-                        'data': item.get('document', item),
-                        'score': item.get('score', 0.0),
-                        'metadata': item.get('metadata', {})
-                    })
-
-            # Sort by score
-            formatted_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+            formatted_results = SearchResultFormatter.format_typed_results(all_results)
 
             return {
                 'query': query,
@@ -150,21 +139,11 @@ class SearchExpert(BaseExpert):
                     'message': 'No results found'
                 }
 
-            # Format results
-            formatted_results = []
-            for result_type, items in result.items():
-                if result_type == 'query':
-                    continue
-                for item in items:
-                    formatted_results.append({
-                        'type': result_type,
-                        'data': item.get('document', item),
-                        'score': item.get('score', 0.0),
-                        'metadata': item.get('metadata', {})
-                    })
-
-            # Sort by score
-            formatted_results.sort(key=lambda x: x.get('score', 0), reverse=True)
+            # Format results using centralized formatter (DRY)
+            formatted_results = SearchResultFormatter.format_typed_results(
+                result,
+                skip_keys=['query']
+            )
 
             return {
                 'query': query,

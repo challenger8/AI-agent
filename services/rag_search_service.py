@@ -13,6 +13,7 @@ from services.base_service import BaseService
 from services.embedding_service import EmbeddingService
 from services.vector_store_service import VectorStoreService
 from utils.exceptions import ServiceError
+from utils.result_formatter import SearchResultFormatter
 from config.entity_types import EntityTypes
 
 
@@ -302,23 +303,15 @@ class RAGSearchService(BaseService):
     
     def _format_collection_results(self, results: List[Dict], result_type: str) -> List[Dict[str, Any]]:
         """
-        Format individual collection results
-        
+        Format individual collection results.
+
+        REFACTORED: Uses SearchResultFormatter.format_collection_results() (DRY)
+
         Args:
             results: Results from collection
             result_type: Type of result ('deal', 'activity', 'agent')
-            
+
         Returns:
             Formatted results
         """
-        formatted = []
-        for result in results:
-            formatted.append({
-                'id': result.get('id'),
-                'type': result_type,
-                'text': result.get('text'),
-                'metadata': result.get('metadata', {}),
-                'similarity_score': round(result.get('similarity', 0), 4),
-                'distance': round(result.get('distance', 0), 4)
-            })
-        return formatted
+        return SearchResultFormatter.format_collection_results(results, result_type)
