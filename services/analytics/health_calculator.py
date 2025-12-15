@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any
 
 from config.settings import AnalysisSettings
+from config.constants import HealthCategory
 from utils.logging_config import get_logger
 from utils.deal_status_detector import DealStatusDetector
 from utils.activity_utils import ActivityUtils
@@ -56,13 +57,34 @@ class HealthCalculator:
             return 30  # Unknown status gets low score
     
     def get_category(self, score: int) -> str:
-        """Get health category label from score"""
+        """
+        Get health category (English constant) from score.
+
+        Returns English constant for use in code logic.
+        Use get_category_persian() for UI display.
+
+        Returns:
+            One of: HealthCategory.HEALTHY, HealthCategory.MEDIUM, HealthCategory.AT_RISK
+        """
         if score >= AnalysisSettings.HEALTH_HIGH_THRESHOLD:
-            return "سالم"
+            return HealthCategory.HEALTHY
         elif score >= AnalysisSettings.HEALTH_MEDIUM_THRESHOLD:
-            return "متوسط"
+            return HealthCategory.MEDIUM
         else:
-            return "در خطر"
+            return HealthCategory.AT_RISK
+
+    def get_category_persian(self, score: int) -> str:
+        """
+        Get Persian health category label for UI display.
+
+        Args:
+            score: Health score (0-100)
+
+        Returns:
+            Persian category label: 'سالم', 'متوسط', or 'در خطر'
+        """
+        category = self.get_category(score)
+        return HealthCategory.translate(category)
     
     def _detect_deal_status(self, deal: Dict[str, Any]) -> str:
         """
