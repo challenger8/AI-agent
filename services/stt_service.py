@@ -12,7 +12,7 @@ from datetime import datetime
 import hashlib
 
 from services.base_service import BaseService
-from services.cache_service import get_cache_service, CacheService
+from services.cache import get_cache_service, CacheService
 from config.settings import STTSettings, FeatureFlags, get_stt_available
 from utils.exceptions import ServiceError
 

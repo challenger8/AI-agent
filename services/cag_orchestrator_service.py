@@ -341,65 +341,43 @@ class CAGOrchestrator(BaseService):
         }
         self.logger.info("Stats reset")
 
+    # Convenience methods (moved from CAGSearchManager)
 
-class CAGSearchManager:
-    """High-level interface for CAG search"""
-    
-    def __init__(self, orchestrator: CAGOrchestrator):
+    def search_deals(self, query: str, n_results: int = 5) -> Dict[str, Any]:
         """
-        Initialize manager
-        
-        Args:
-            orchestrator: CAG orchestrator instance
-        """
-        self.orchestrator = orchestrator
-        self.logger = logging.getLogger(__name__)
-    
-    async def initialize(self):
-        """Initialize orchestrator"""
-        await self.orchestrator.initialize()
-    
-    def search(self, 
-              query: str,
-              document_type: str = 'deal',
-              n_results: int = 5,
-              include_metadata: bool = True) -> Dict[str, Any]:
-        """
-        Perform CAG search
-        
+        Search deals with CAG
+
         Args:
             query: Search query
-            document_type: 'deal', 'activity', or 'agent'
             n_results: Number of results
-            include_metadata: Include CAG metadata
-            
+
         Returns:
-            Search results
+            Search results for deals
         """
-        result = self.orchestrator.search_with_cag(query, document_type, n_results)
-        
-        if include_metadata:
-            return result
-        else:
-            # Return only results without CAG metadata
-            return {
-                'status': result['status'],
-                'results': result.get('results', {}),
-                'execution_time': result.get('execution_time')
-            }
-    
-    def search_deals(self, query: str, n_results: int = 5) -> Dict[str, Any]:
-        """Search deals with CAG"""
-        return self.search(query, document_type='deal', n_results=n_results)
-    
+        return self.search_with_cag(query, document_type='deal', n_results=n_results)
+
     def search_activities(self, query: str, n_results: int = 5) -> Dict[str, Any]:
-        """Search activities with CAG"""
-        return self.search(query, document_type='activity', n_results=n_results)
-    
+        """
+        Search activities with CAG
+
+        Args:
+            query: Search query
+            n_results: Number of results
+
+        Returns:
+            Search results for activities
+        """
+        return self.search_with_cag(query, document_type='activity', n_results=n_results)
+
     def search_agents(self, query: str, n_results: int = 5) -> Dict[str, Any]:
-        """Search agents with CAG"""
-        return self.search(query, document_type='agent', n_results=n_results)
-    
-    def get_stats(self) -> Dict[str, Any]:
-        """Get CAG statistics"""
-        return self.orchestrator.get_stats()
+        """
+        Search agents with CAG
+
+        Args:
+            query: Search query
+            n_results: Number of results
+
+        Returns:
+            Search results for agents
+        """
+        return self.search_with_cag(query, document_type='agent', n_results=n_results)

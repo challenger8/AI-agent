@@ -6,7 +6,8 @@ Unit tests for CacheService
 
 import pytest
 from datetime import timedelta
-from services.cache_service import CacheService, get_cache_service
+from services.cache import CacheService, get_cache_service
+from services.cache.base_cache import CacheKeyBuilder
 
 @pytest.mark.unit
 class TestCacheServiceBasic:
@@ -118,23 +119,23 @@ class TestCacheKeyGeneration:
     def test_generate_key(self):
         """Test generating cache keys from parts"""
         # Test with multiple parts
-        key = CacheService.generate_key('sentiment', 'abc123', 'v1')
+        key = CacheKeyBuilder.build('sentiment', 'abc123', 'v1')
         assert key == 'sentiment:abc123:v1'
         
         # Test with two parts
-        key = CacheService.generate_key('analytics', 'deal-456')
+        key = CacheKeyBuilder.build('analytics', 'deal-456')
         assert key == 'analytics:deal-456'
         
         # Test with single part
-        key = CacheService.generate_key('simple')
+        key = CacheKeyBuilder.build('simple')
         assert key == 'simple'
         
         # Test that keys are strings
-        key = CacheService.generate_key('test', '123')
+        key = CacheKeyBuilder.build('test', '123')
         assert isinstance(key, str)
         
         # Test with numbers (converted to strings)
-        key = CacheService.generate_key('count', 42)
+        key = CacheKeyBuilder.build('count', 42)
         assert 'count' in key
         assert '42' in key
     @pytest.mark.unit
@@ -142,8 +143,8 @@ class TestCacheKeyGeneration:
         """Test text hashing for consistent cache keys"""
         # Test consistency - same text produces same hash
         text = "این یک متن فارسی برای تست است"
-        hash1 = CacheService.hash_text(text)
-        hash2 = CacheService.hash_text(text)
+        hash1 = CacheKeyBuilder.for_text(text)
+        hash2 = CacheKeyBuilder.for_text(text)
         
         assert hash1 == hash2
         assert isinstance(hash1, str)
@@ -152,25 +153,25 @@ class TestCacheKeyGeneration:
         # Test different texts produce different hashes
         text1 = "متن اول"
         text2 = "متن دوم"
-        hash1 = CacheService.hash_text(text1)
-        hash2 = CacheService.hash_text(text2)
+        hash1 = CacheKeyBuilder.for_text(text1)
+        hash2 = CacheKeyBuilder.for_text(text2)
         
         assert hash1 != hash2
         
         # Test empty string (edge case)
-        hash_empty = CacheService.hash_text("")
+        hash_empty = CacheKeyBuilder.for_text("")
         assert hash_empty is not None
         assert isinstance(hash_empty, str)
         
         # Test long text
         long_text = "متن طولانی " * 1000
-        hash_long = CacheService.hash_text(long_text)
+        hash_long = CacheKeyBuilder.for_text(long_text)
         assert hash_long is not None
         assert isinstance(hash_long, str)
         
         # Test English text
         english_text = "This is a test sentence"
-        hash_english = CacheService.hash_text(english_text)
+        hash_english = CacheKeyBuilder.for_text(english_text)
         assert hash_english is not None
         assert len(hash_english) > 0
 @pytest.mark.unit

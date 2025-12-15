@@ -7,8 +7,9 @@ Sentiment analysis service for Persian text using Qwen2 with prompts
 import asyncio
 from typing import Dict, List, Any, Optional
 from collections import defaultdict
-from services.cache_service import get_cache_service, CacheService
+from services.cache import get_cache_service, CacheService
 from services.cache_strategies import CacheTTLStrategy
+from services.cache.base_cache import CacheKeyBuilder
 
 from services.base_service import BaseService
 from config.settings import SentimentSettings, FeatureFlags, get_sentiment_available
@@ -28,31 +29,36 @@ class SentimentService(BaseService):
     
     async def initialize(self) -> bool:
         """
-        Initialize Qwen2 model for prompt-based sentiment analysis
-        
+        Initialize Qwen2 model for prompt-based sentiment analysis.
+
+        REFACTORED: Now uses ModelLoader for consistent patterns.
+
         Returns:
             True if initialization successful, False otherwise
         """
         if not self.available:
             self.logger.warning("Sentiment analysis not available - transformers not installed")
             return False
-        
-        if self.model_loaded:
+
+        # DRY: Use centralized "already loaded" check pattern
+        from utils.model_loader import ModelLoader
+
+        if self.model_loaded and ModelLoader.check_already_loaded(self.model, "Sentiment model"):
             return True
-        
+
         try:
             self.logger.info("Loading Qwen2 sentiment model...")
-            
+
             from transformers import AutoModelForCausalLM, AutoTokenizer
             import torch
-            
+
             # Load tokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(
                 SentimentSettings.MODEL_NAME,
                 token=SentimentSettings.HF_TOKEN,
                 trust_remote_code=True
             )
-            
+
             # Load model
             device = "cuda" if torch.cuda.is_available() else "cpu"
             self.model = AutoModelForCausalLM.from_pretrained(
@@ -62,13 +68,13 @@ class SentimentService(BaseService):
                 device_map=device,
                 torch_dtype=torch.float16 if device == "cuda" else torch.float32
             )
-            
+
             self.model.eval()
             self.model_loaded = True
             self.logger.info(f"Qwen2 sentiment model loaded successfully on {device}")
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Failed to load Qwen2 model: {e}")
             raise SentimentAnalysisError(f"Model initialization failed: {e}")
@@ -94,7 +100,7 @@ class SentimentService(BaseService):
         
         # Generate cache key
         text_hash = self.cache_service.hash_text(text.strip())
-        cache_key = self.cache_service.generate_key("sentiment", text_hash)
+        cache_key = CacheKeyBuilder.build("sentiment", text_hash)
         
         # Try to get from Redis cache
         cached_result = self.cache_service.get(cache_key)

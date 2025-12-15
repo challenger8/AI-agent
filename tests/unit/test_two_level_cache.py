@@ -5,7 +5,7 @@ Tests for two-level caching system
 """
 
 import pytest
-from services.cache_service import CacheService, TwoLevelCache
+from services.cache import CacheService, TwoLevelCache
 
 
 @pytest.mark.unit
@@ -66,16 +66,19 @@ class TestTwoLevelCache:
         stats = two_level_cache.get_stats()
         assert stats['misses'] >= 1
     
-    def test_l1_lru_eviction(self, two_level_cache):
+    def test_l1_lru_eviction(self, two_level_cache, redis_cache):
         """Test L1 LRU eviction when full"""
+        if not redis_cache.is_available():
+            pytest.skip("Redis not available - test requires L2 cache")
+
         # Fill L1 beyond capacity (max_size = 10)
         for i in range(15):
             two_level_cache.set(f'key_{i}', f'value_{i}')
-        
+
         # L1 should only have 10 entries (most recent)
         stats = two_level_cache.get_stats()
         assert stats['l1_size'] == 10
-        
+
         # Oldest keys should be evicted from L1
         # But still in L2
         value = two_level_cache.get('key_0')  # Should hit L2

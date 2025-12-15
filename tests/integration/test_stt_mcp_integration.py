@@ -8,22 +8,8 @@ import pytest
 import json
 import sys
 from pathlib import Path
-def parse_result(result):
-    """Parse result from tool handler - handles dict, str, or object with .text"""
-    if isinstance(result, dict):
-        return result
-    elif isinstance(result, str):
-        return json.loads(result) if result.startswith('{') else {"text": result}
-    elif isinstance(result, list) and len(result) > 0:
-        item = result[0]
-        if hasattr(item, 'text'):
-            return json.loads(item.text)
-        elif isinstance(item, str):
-            return json.loads(item) if item.startswith('{') else {"text": item}
-        return item
-    elif hasattr(result, 'text'):
-        return json.loads(result.text)
-    return result
+from tests.utils.test_helpers import parse_result
+
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 

@@ -13,6 +13,7 @@ import chromadb
 from services.base_service import BaseService
 from services.embedding_service import EmbeddingService
 from utils.exceptions import ServiceError
+from utils.result_formatter import SearchResultFormatter
 
 class VectorStoreService(BaseService):
     """Service for managing vector embeddings in ChromaDB"""
@@ -176,17 +177,8 @@ class VectorStoreService(BaseService):
                 where=where
             )
             
-            # Format results
-            formatted_results = []
-            if results['ids'] and results['ids'][0]:
-                for i, doc_id in enumerate(results['ids'][0]):
-                    formatted_results.append({
-                        'id': doc_id,
-                        'text': results['documents'][0][i],
-                        'metadata': results['metadatas'][0][i],
-                        'distance': results['distances'][0][i] if results['distances'] else 0,
-                        'similarity': 1 - results['distances'][0][i] if results['distances'] else 0
-                    })
+            # Format results using centralized formatter (DRY)
+            formatted_results = SearchResultFormatter.format_chromadb_results(results)
             
             self.logger.debug(f"Search in {collection_name}: found {len(formatted_results)} results")
             return formatted_results

@@ -33,8 +33,7 @@ class DealService(BaseService):
                 deal = uow.deals.get_deal_by_id(deal_id)
                 return deal.to_dict() if deal else None
         except Exception as e:
-            self.logger.error(f"Error getting deal {deal_id}: {e}")
-            raise ServiceError(f"Failed to get deal: {e}")
+            return self._handle_error(f"getting deal {deal_id}", e, raise_error=True)
     
     def get_deals_by_status(self, status: str) -> List[Dict[str, Any]]:
         """
@@ -51,8 +50,7 @@ class DealService(BaseService):
                 deals = uow.deals.get_deals_by_status(status)
                 return [deal.to_dict() for deal in deals]
         except Exception as e:
-            self.logger.error(f"Error getting deals by status {status}: {e}")
-            raise ServiceError(f"Failed to get deals: {e}")
+            return self._handle_error(f"getting deals by status {status}", e, raise_error=True)
     
     def get_all_deals(self) -> List[Dict[str, Any]]:
         """
@@ -66,8 +64,7 @@ class DealService(BaseService):
                 deals = uow.deals.get_all_deals()
                 return [deal.to_dict() for deal in deals]
         except Exception as e:
-            self.logger.error(f"Error getting all deals: {e}")
-            raise ServiceError(f"Failed to get deals: {e}")
+            return self._handle_error("getting all deals", e, raise_error=True)
     
     def get_deals_summary(self, days: int = 30) -> Dict[str, Any]:
         """
@@ -118,8 +115,7 @@ class DealService(BaseService):
             }
             
         except Exception as e:
-            self.logger.error(f"Error generating deals summary: {e}")
-            raise ServiceError(f"Failed to generate summary: {e}")
+            return self._handle_error("generating deals summary", e, raise_error=True)
     def get_deal_with_activities(self, deal_id: str) -> Optional[Dict[str, Any]]:
         """
         Get deal with all its activities (one-stop data access)
@@ -156,8 +152,7 @@ class DealService(BaseService):
             }
             
         except Exception as e:
-            self.logger.error(f"Error getting deal with activities {deal_id}: {e}")
-            raise ServiceError(f"Failed to get deal data: {e}")
+            return self._handle_error(f"getting deal with activities {deal_id}", e, raise_error=True)
     def get_deal_timeline(self, deal_id: int) -> Dict[str, Any]:
         """
         Get deal timeline with key milestones
@@ -218,8 +213,7 @@ class DealService(BaseService):
             }
             
         except Exception as e:
-            self.logger.error(f"Error generating timeline for deal {deal_id}: {e}")
-            raise ServiceError(f"Failed to generate timeline: {e}")
+            return self._handle_error(f"generating timeline for deal {deal_id}", e, raise_error=True)
     def detect_deal_status(self, deal: Dict[str, Any]) -> str:
         """
         Detect deal status from deal object.

@@ -150,7 +150,7 @@ class TwoLevelCache:
 
     def invalidate_deal_cache(self, deal_id: str) -> None:
         """Invalidate deal-related caches in both levels"""
-        self.delete(self.generate_key("deal_analysis", deal_id))
+        self.delete(CacheKeyBuilder.build("deal_analysis", deal_id))
         self.delete_pattern("portfolio:*")
 
     def exists(self, key: str) -> bool:
@@ -198,10 +198,6 @@ class TwoLevelCache:
         }
 
     # Pass-through methods for compatibility
-    def generate_key(self, *parts: str) -> str:
-        """Generate cache key (delegate to Redis cache)"""
-        return self.redis_cache.generate_key(*parts)
-
     def is_available(self) -> bool:
         """Check if cache is available"""
         return self.redis_cache.is_available()

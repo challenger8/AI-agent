@@ -7,24 +7,10 @@ Integration tests for MCP Server
 import pytest
 import asyncio
 import json
+from tests.utils.test_helpers import parse_result
+
 pytest_plugins = ('pytest_asyncio',)
 
-def parse_result(result):
-    """Parse result from tool handler - handles dict, str, or object with .text"""
-    if isinstance(result, dict):
-        return result
-    elif isinstance(result, str):
-        return json.loads(result) if result.startswith('{') else {"text": result}
-    elif isinstance(result, list) and len(result) > 0:
-        item = result[0]
-        if hasattr(item, 'text'):
-            return json.loads(item.text)
-        elif isinstance(item, str):
-            return json.loads(item) if item.startswith('{') else {"text": item}
-        return item
-    elif hasattr(result, 'text'):
-        return json.loads(result.text)
-    return result
 @pytest.mark.asyncio
 class TestMCPServerInitialization:
     """Test MCP server initialization"""

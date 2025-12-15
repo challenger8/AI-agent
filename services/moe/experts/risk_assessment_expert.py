@@ -12,6 +12,7 @@ from ..base_expert import BaseExpert, ExpertResult
 from config.moe_settings import MoESettings
 from config.settings import AnalysisSettings
 from config.constants import RiskAnalysisConfig
+from utils.health_categorizer import HealthCategorizer
 
 
 class RiskAssessmentExpert(BaseExpert):
@@ -200,32 +201,12 @@ class RiskAssessmentExpert(BaseExpert):
             analysis = analytics_service.analyze_deal_comprehensive(deal_id)
             health_score = analysis.get('health_score', 50)
 
-            # Determine risk level
-            if health_score < AnalysisSettings.HEALTH_MEDIUM_THRESHOLD:
-                return {
-                    'risk_level': 'high',
-                    'data': {
-                        'deal_id': deal_id,
-                        'health_score': health_score,
-                        'risks': analysis.get('risk_indicators', [])
-                    }
-                }
-            elif health_score < AnalysisSettings.HEALTH_HIGH_THRESHOLD:
-                return {
-                    'risk_level': 'medium',
-                    'data': {
-                        'deal_id': deal_id,
-                        'health_score': health_score
-                    }
-                }
-            else:
-                return {
-                    'risk_level': 'low',
-                    'data': {
-                        'deal_id': deal_id,
-                        'health_score': health_score
-                    }
-                }
+            # Determine risk level using centralized categorizer (DRY)
+            return HealthCategorizer.get_risk_data(
+                health_score=health_score,
+                deal_id=deal_id,
+                risk_indicators=analysis.get('risk_indicators', [])
+            )
         except Exception:
             return None
 

@@ -76,19 +76,3 @@ class EmbeddingTextFormatter:
             f"Title: {agent.get('title', 'N/A')}",
         ]
         return cls.SEPARATOR.join(filter(None, text_parts))
-
-
-# Convenience functions for backward compatibility
-def format_deal_text(deal: Dict[str, Any]) -> str:
-    """Format deal for embedding (convenience function)"""
-    return EmbeddingTextFormatter.format_deal(deal)
-
-
-def format_activity_text(activity: Dict[str, Any]) -> str:
-    """Format activity for embedding (convenience function)"""
-    return EmbeddingTextFormatter.format_activity(activity)
-
-
-def format_agent_text(agent: Dict[str, Any]) -> str:
-    """Format agent for embedding (convenience function)"""
-    return EmbeddingTextFormatter.format_agent(agent)

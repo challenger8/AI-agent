@@ -7,7 +7,7 @@ Tests the full CAG pipeline integration
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
-from services.cag_orchestrator_service import CAGOrchestrator, CAGSearchManager
+from services.cag_orchestrator_service import CAGOrchestrator
 from services.relevance_scorer_service import RelevanceScorer, RelevanceScore
 from services.query_rewriter_service import QueryRewriter
 from config.cag_settings import CAGSettings
@@ -289,103 +289,32 @@ class TestCAGOrchestrator:
         orchestrator._should_correct = MagicMock(return_value=False)
         
         result = orchestrator.search_with_cag("test", 'deal', 5)
-        
+
         assert result['status'] == 'success'
 
+    def test_search_deals_convenience_method(self, orchestrator):
+        """Test search_deals convenience method"""
+        orchestrator.search_with_cag = MagicMock(return_value={'status': 'success'})
 
-class TestCAGSearchManager:
-    """Test CAG Search Manager"""
-    
-    @pytest.fixture
-    def mock_orchestrator(self):
-        """Mock orchestrator"""
-        return MagicMock()
-    
-    @pytest.fixture
-    def manager(self, mock_orchestrator):
-        """Initialize manager"""
-        return CAGSearchManager(mock_orchestrator)
-    
-    @pytest.mark.asyncio
-    async def test_initialize(self, manager):
-        """Test manager initialization"""
-        manager.orchestrator.initialize = AsyncMock()
-        
-        await manager.initialize()
-        
-        manager.orchestrator.initialize.assert_called_once()
-    
-    def test_search(self, manager):
-        """Test search through manager"""
-        mock_result = {
-            'status': 'success',
-            'results': {'deals': []},
-            'correction': {'applied': False}
-        }
-        manager.orchestrator.search_with_cag = MagicMock(return_value=mock_result)
-        
-        result = manager.search("test query", document_type='deal')
-        
+        result = orchestrator.search_deals("pricing", n_results=10)
+
+        orchestrator.search_with_cag.assert_called_once_with("pricing", document_type='deal', n_results=10)
         assert result['status'] == 'success'
-        manager.orchestrator.search_with_cag.assert_called_once()
-    
-    def test_search_without_metadata(self, manager):
-        """Test search without metadata"""
-        mock_result = {
-            'status': 'success',
-            'results': {'deals': []},
-            'execution_time': 0.1,
-            'correction': {'applied': False}
-        }
-        manager.orchestrator.search_with_cag = MagicMock(return_value=mock_result)
-        
-        result = manager.search("test", include_metadata=False)
-        
-        assert 'correction' not in result or result.get('correction') is None
-        assert 'results' in result
-        assert 'execution_time' in result
-    
-    def test_search_deals(self, manager):
-        """Test deal search"""
-        manager.orchestrator.search_with_cag = MagicMock(return_value={
-            'status': 'success'
-        })
-        
-        manager.search_deals("pricing")
-        
-        manager.orchestrator.search_with_cag.assert_called_with(
-            "pricing", 'deal', 5
-        )
-    
-    def test_search_activities(self, manager):
-        """Test activity search"""
-        manager.orchestrator.search_with_cag = MagicMock(return_value={
-            'status': 'success'
-        })
-        
-        manager.search_activities("call")
-        
-        manager.orchestrator.search_with_cag.assert_called_with(
-            "call", 'activity', 5
-        )
-    
-    def test_search_agents(self, manager):
-        """Test agent search"""
-        manager.orchestrator.search_with_cag = MagicMock(return_value={
-            'status': 'success'
-        })
-        
-        manager.search_agents("John")
-        
-        manager.orchestrator.search_with_cag.assert_called_with(
-            "John", 'agent', 5
-        )
-    
-    def test_get_stats(self, manager):
-        """Test getting stats through manager"""
-        mock_stats = {'total_searches': 10}
-        manager.orchestrator.get_stats = MagicMock(return_value=mock_stats)
-        
-        stats = manager.get_stats()
-        
-        assert stats == mock_stats
+
+    def test_search_activities_convenience_method(self, orchestrator):
+        """Test search_activities convenience method"""
+        orchestrator.search_with_cag = MagicMock(return_value={'status': 'success'})
+
+        result = orchestrator.search_activities("call")
+
+        orchestrator.search_with_cag.assert_called_once_with("call", document_type='activity', n_results=5)
+        assert result['status'] == 'success'
+
+    def test_search_agents_convenience_method(self, orchestrator):
+        """Test search_agents convenience method"""
+        orchestrator.search_with_cag = MagicMock(return_value={'status': 'success'})
+
+        result = orchestrator.search_agents("John", n_results=3)
+
+        orchestrator.search_with_cag.assert_called_once_with("John", document_type='agent', n_results=3)
+        assert result['status'] == 'success'

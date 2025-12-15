@@ -9,9 +9,10 @@ from typing import Dict, List, Any, Optional
 
 from services.base_service import BaseService
 from services.deal_service import DealService
-from services.cache_service import get_cache_service
+from services.cache import get_cache_service
 from services.cache_strategies import CacheTTLStrategy
-from services.cache_service import get_two_level_cache
+from services.cache import get_two_level_cache
+from services.cache.base_cache import CacheKeyBuilder
 # Import specialists
 from .analytics.health_calculator import HealthCalculator
 from .analytics.risk_analyzer import RiskAnalyzer
@@ -136,7 +137,7 @@ class AnalyticsService(BaseService):
         """
         try:
             # Check cache first
-            cache_key = self.cache_service.generate_key("portfolio", status or "all", days)
+            cache_key = CacheKeyBuilder.build("portfolio", status or "all", days)
             cached = self.cache_service.get(cache_key)
             if cached:
                 return cached
@@ -173,7 +174,7 @@ class AnalyticsService(BaseService):
             }
             
             # Cache result
-            cache_key = self.cache_service.generate_key("portfolio", status or "all", days)
+            cache_key = CacheKeyBuilder.build("portfolio", status or "all", days)
             ttl = CacheTTLStrategy.get_portfolio_ttl({'status': status})
             self.cache_service.set(cache_key, result, ttl=ttl)
             self.logger.debug(f"Cached portfolio (status={status}) with TTL={ttl}s")
@@ -181,8 +182,7 @@ class AnalyticsService(BaseService):
             return result
             
         except Exception as e:
-            self.logger.error(f"Error in portfolio overview: {e}")
-            return {"error": str(e)}
+            return self._handle_error("portfolio overview", e)
 
 
     def invalidate_deal_cache(self, deal_id: str) -> bool:
@@ -196,7 +196,7 @@ class AnalyticsService(BaseService):
             True if cache was invalidated
         """
         try:
-            cache_key = self.cache_service.generate_key("deal_analysis", deal_id)
+            cache_key = CacheKeyBuilder.build("deal_analysis", deal_id)
             deleted = self.cache_service.delete(cache_key)
             
             # Also invalidate portfolio cache
@@ -205,8 +205,7 @@ class AnalyticsService(BaseService):
             self.logger.info(f"Invalidated cache for deal {deal_id}")
             return deleted
         except Exception as e:
-            self.logger.error(f"Error invalidating cache: {e}")
-            return False
+            return self._handle_error("invalidating cache", e, return_dict=False)
 
 
     def clear_analytics_cache(self) -> int:
@@ -218,8 +217,7 @@ class AnalyticsService(BaseService):
             self.logger.info(f"Cleared analytics cache: {deleted} keys")
             return deleted
         except Exception as e:
-            self.logger.error(f"Error clearing cache: {e}")
-            return 0
+            return self._handle_error("clearing cache", e, return_dict=False) or 0
     def analyze_deal_comprehensive(self, deal_id: str) -> Dict[str, Any]:
         """
         Comprehensive deal analysis - orchestrates all specialists.
@@ -232,7 +230,7 @@ class AnalyticsService(BaseService):
         """
         try:
             # Check cache
-            cache_key = self.cache_service.generate_key("deal_analysis", deal_id)
+            cache_key = CacheKeyBuilder.build("deal_analysis", deal_id)
             cached = self.cache_service.get(cache_key)
             if cached:
                 return cached
@@ -295,8 +293,7 @@ class AnalyticsService(BaseService):
             return result
             
         except Exception as e:
-            self.logger.error(f"Error analyzing deal {deal_id}: {e}")
-            raise ServiceError(f"Failed to analyze deal: {e}")
+            return self._handle_error("analyzing deal", e, raise_error=True)
     
     def _analyze_sentiment(self, activities: List[Any]) -> Dict[str, Any]:
         """Delegate sentiment analysis"""

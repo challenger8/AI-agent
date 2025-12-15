@@ -2,32 +2,69 @@
 services/analytics/insight_generator.py
 ---------------------------------------
 Single Responsibility: Generate insights from analysis data
+
+KISS REFACTOR: Uses context dataclasses to reduce parameter coupling
 """
 
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Union
 from config.settings import AnalysisSettings
 from utils.logging_config import get_logger
+from utils.sentiment_utils import SentimentNormalizer
+from services.analytics.context import DealAnalysisContext
 
 
 class InsightGenerator:
     """
     Generates human-readable insights.
-    
+
     Single Responsibility: Insight generation ONLY.
+    KISS: Uses context objects for cleaner signatures.
     """
-    
+
     def __init__(self):
         self.logger = get_logger(self.__class__.__name__)
-    
+
     def generate_deal_insights(
         self,
-        deal: Dict[str, Any],
-        activities: List[Any],
-        sentiment_summary: Dict[str, Any],
-        health_score: int,
-        risk_indicators: List[Dict[str, Any]]
+        context: Union[DealAnalysisContext, Dict[str, Any]] = None,
+        # Legacy parameters for backward compatibility
+        deal: Dict[str, Any] = None,
+        activities: List[Any] = None,
+        sentiment_summary: Dict[str, Any] = None,
+        health_score: int = None,
+        risk_indicators: List[Dict[str, Any]] = None
     ) -> List[str]:
-        """Generate insights for a single deal"""
+        """
+        Generate insights for a single deal.
+
+        REFACTORED: Supports both context object and individual parameters.
+
+        Args:
+            context: DealAnalysisContext object (preferred)
+            deal: Deal dict (legacy, use context instead)
+            activities: Activities list (legacy, use context instead)
+            sentiment_summary: Sentiment summary (legacy, use context instead)
+            health_score: Health score (legacy, use context instead)
+            risk_indicators: Risk indicators (legacy, use context instead)
+
+        Returns:
+            List of insight strings
+        """
+        # Support both new (context) and old (individual params) APIs
+        if isinstance(context, DealAnalysisContext):
+            deal = context.deal
+            activities = context.activities
+            sentiment_summary = context.sentiment_summary
+            health_score = context.health_score
+            risk_indicators = context.risk_indicators
+        elif context is not None and isinstance(context, dict):
+            # If first param is a dict, assume it's legacy 'deal' parameter
+            # Shift all parameters
+            risk_indicators = health_score
+            health_score = sentiment_summary
+            sentiment_summary = activities
+            activities = deal
+            deal = context
         insights = []
         
         # Health insight
@@ -114,9 +151,12 @@ class InsightGenerator:
             return []
         
         dominant = sentiment_summary.get("dominant_sentiment", "خنثی")
-        
-        if dominant in ["مثبت", "positive"]:
-            return ["😊 احساسات مثبت در تعاملات"]
-        elif dominant in ["منفی", "negative"]:
-            return ["😟 احساسات منفی - رفع نگرانی‌ها"]
+
+        # Use centralized sentiment normalizer (DRY)
+        if SentimentNormalizer.is_positive(dominant):
+            emoji = SentimentNormalizer.get_emoji('positive')
+            return [f"{emoji} احساسات مثبت در تعاملات"]
+        elif SentimentNormalizer.is_negative(dominant):
+            emoji = SentimentNormalizer.get_emoji('negative')
+            return [f"{emoji} احساسات منفی - رفع نگرانی‌ها"]
         return []

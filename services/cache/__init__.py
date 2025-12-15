@@ -10,7 +10,7 @@ from services.cache.base_cache import (
     CacheStats,
     generate_cache_key
 )
-from services.cache.memory_cache import MemoryCache, LRUCache
+from services.cache.memory_cache import MemoryCache
 from services.cache.redis_cache import CacheService
 from services.cache.two_level_cache import TwoLevelCache
 from services.cache.factory import (
@@ -28,7 +28,6 @@ __all__ = [
 
     # Memory cache implementations
     'MemoryCache',
-    'LRUCache',
 
     # Redis cache
     'CacheService',

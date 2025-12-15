@@ -4,6 +4,7 @@ services/cache/redis_cache.py
 Redis cache implementation with graceful fallback.
 
 Extracted from cache_service.py for better modularity.
+REFACTORED: Added require_redis decorator to eliminate duplicate availability checks.
 """
 
 import os
@@ -11,6 +12,7 @@ import json
 import logging
 from typing import Any, Optional, Union
 from datetime import timedelta
+from functools import wraps
 
 from config.constants import CacheConfig
 
@@ -22,6 +24,34 @@ except ImportError:
     logging.warning("Redis not installed. Caching will be disabled.")
 
 from .base_cache import CacheKeyBuilder
+
+
+def require_redis(default_return=None):
+    """
+    Decorator to check Redis availability before method execution.
+
+    DRY: Eliminates duplicate availability checks across 10 methods.
+
+    Args:
+        default_return: Value to return if Redis not available
+
+    Returns:
+        Decorator function
+
+    Example:
+        @require_redis(default_return=False)
+        def set(self, key, value):
+            # Redis available, proceed with operation
+            ...
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            if not self.enabled or not self.redis_client:
+                return default_return
+            return func(self, *args, **kwargs)
+        return wrapper
+    return decorator
 
 
 class CacheService:
@@ -104,17 +134,16 @@ class CacheService:
             self.enabled = False
             self.redis_client = None
 
+    @require_redis(default_return=False)
     def is_available(self) -> bool:
         """Check if cache is available"""
-        if not self.enabled or not self.redis_client:
-            return False
-
         try:
             self.redis_client.ping()
             return True
         except:
             return False
 
+    @require_redis(default_return=None)
     def get(self, key: str) -> Optional[Any]:
         """
         Get value from cache
@@ -125,9 +154,6 @@ class CacheService:
         Returns:
             Cached value or None if not found
         """
-        if not self.enabled or not self.redis_client:
-            return None
-
         try:
             value = self.redis_client.get(key)
 
@@ -150,6 +176,7 @@ class CacheService:
                 self._connection_error_logged = True
             return None
 
+    @require_redis(default_return=False)
     def set(self,
             key: str,
             value: Any,
@@ -165,9 +192,6 @@ class CacheService:
         Returns:
             True if successful, False otherwise
         """
-        if not self.enabled or not self.redis_client:
-            return False
-
         try:
             # Convert timedelta to seconds
             if isinstance(ttl, timedelta):
@@ -195,6 +219,7 @@ class CacheService:
                 self._connection_error_logged = True
             return False
 
+    @require_redis(default_return=False)
     def delete(self, key: str) -> bool:
         """
         Delete key from cache
@@ -205,9 +230,6 @@ class CacheService:
         Returns:
             True if deleted, False otherwise
         """
-        if not self.enabled or not self.redis_client:
-            return False
-
         try:
             result = self.redis_client.delete(key)
             self.logger.debug(f"Cache DELETE: {key}")
@@ -217,6 +239,7 @@ class CacheService:
             self.logger.error(f"Cache delete error: {e}")
             return False
 
+    @require_redis(default_return=0)
     def delete_pattern(self, pattern: str) -> int:
         """
         Delete all keys matching pattern
@@ -227,9 +250,6 @@ class CacheService:
         Returns:
             Number of keys deleted
         """
-        if not self.enabled or not self.redis_client:
-            return 0
-
         try:
             keys = self.redis_client.keys(pattern)
             if keys:
@@ -242,6 +262,7 @@ class CacheService:
             self.logger.error(f"Cache delete pattern error: {e}")
             return 0
 
+    @require_redis(default_return=False)
     def exists(self, key: str) -> bool:
         """
         Check if key exists in cache
@@ -252,15 +273,13 @@ class CacheService:
         Returns:
             True if exists, False otherwise
         """
-        if not self.enabled or not self.redis_client:
-            return False
-
         try:
             return self.redis_client.exists(key) > 0
         except Exception as e:
             self.logger.error(f"Cache exists error: {e}")
             return False
 
+    @require_redis(default_return=False)
     def clear_all(self) -> bool:
         """
         Clear all keys in current database
@@ -270,9 +289,6 @@ class CacheService:
         Returns:
             True if successful
         """
-        if not self.enabled or not self.redis_client:
-            return False
-
         try:
             self.redis_client.flushdb()
             self.logger.warning("Cache cleared (all keys deleted)")
@@ -282,6 +298,7 @@ class CacheService:
             self.logger.error(f"Cache clear error: {e}")
             return False
 
+    @require_redis(default_return={"enabled": False, "available": False})
     def get_stats(self) -> dict:
         """
         Get cache statistics
@@ -289,12 +306,6 @@ class CacheService:
         Returns:
             Dictionary with cache stats
         """
-        if not self.enabled or not self.redis_client:
-            return {
-                "enabled": False,
-                "available": False
-            }
-
         try:
             info = self.redis_client.info()
 
@@ -328,37 +339,7 @@ class CacheService:
             return 0.0
         return round((hits / total) * 100, 2)
 
-    @staticmethod
-    def generate_key(*parts: str) -> str:
-        """
-        Generate cache key from parts
-
-        Args:
-            *parts: Key parts to join
-
-        Returns:
-            Formatted cache key
-
-        Example:
-            generate_key("sentiment", "text", "abc123")
-            -> "sentiment:text:abc123"
-        """
-        return ":".join(str(p) for p in parts)
-
-    @staticmethod
-    def hash_text(text: str) -> str:
-        """
-        Generate hash for text (useful for cache keys).
-        Delegates to CacheKeyBuilder.for_text().
-
-        Args:
-            text: Text to hash
-
-        Returns:
-            MD5 hash of text
-        """
-        return CacheKeyBuilder.for_text(text)
-
+    @require_redis(default_return=None)
     def increment(self, key: str, amount: int = 1) -> Optional[int]:
         """
         Increment counter
@@ -370,15 +351,13 @@ class CacheService:
         Returns:
             New value or None
         """
-        if not self.enabled or not self.redis_client:
-            return None
-
         try:
             return self.redis_client.incrby(key, amount)
         except Exception as e:
             self.logger.error(f"Cache increment error: {e}")
             return None
 
+    @require_redis(default_return=None)
     def get_ttl(self, key: str) -> Optional[int]:
         """
         Get time-to-live for key
@@ -389,9 +368,6 @@ class CacheService:
         Returns:
             TTL in seconds, -1 if no expiry, -2 if key doesn't exist
         """
-        if not self.enabled or not self.redis_client:
-            return None
-
         try:
             return self.redis_client.ttl(key)
         except Exception as e:

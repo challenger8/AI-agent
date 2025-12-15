@@ -13,6 +13,7 @@ from utils.logging_config import get_logger
 from utils.deal_status_detector import DealStatusDetector
 from utils.activity_utils import ActivityUtils
 from utils.date_utils import DateUtils
+from utils.sentiment_utils import SentimentNormalizer
 
 
 class HealthCalculator:
@@ -153,13 +154,14 @@ class HealthCalculator:
         elif activity_count < 2:
             score -= 10
         
-        # Sentiment bonus/penalty
+        # Sentiment bonus/penalty using centralized normalizer (DRY)
         if sentiment_summary.get('sentiment_available'):
             dominant = sentiment_summary.get('dominant_sentiment', 'خنثی')
-            if dominant in ['مثبت', 'positive']:
-                score += 10
-            elif dominant in ['منفی', 'negative']:
-                score -= 15
+            score += SentimentNormalizer.get_score_modifier(
+                dominant,
+                positive_bonus=10,
+                negative_penalty=15
+            )
         
         return max(0, min(score, 100))
     

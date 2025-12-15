@@ -1,18 +1,27 @@
 """
-services/moe/expert_router.py
------------------------------
-Expert router for Mixture of Experts system
-Classifies queries and routes to appropriate expert(s)
+services/moe/expert_router_refactored.py
+-----------------------------------------
+REFACTORED: Simplified expert router with KISS and SRP principles
+
+Changes (v1):
+- Extracted magic numbers to named constants
+- Broke down complex _route_hybrid() into smaller methods
+- Improved readability and maintainability
+
+Changes (v2):
+- Extracted RoutingMetrics class for metrics tracking (SRP)
+- Extracted RoutingScorer class for scoring logic (SRP)
+- Reduced ExpertRouter from 467 to ~220 lines
 """
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Tuple
 from datetime import datetime
-import re
-from services.cache_service import generate_cache_key
 
 from config.moe_settings import MoESettings
 from utils.logging_config import get_logger
+from services.moe.routing_metrics import RoutingMetrics
+from services.moe.routing_scorer import RoutingScorer
 
 
 @dataclass
@@ -52,7 +61,14 @@ class RoutingDecision:
 
 
 class ExpertRouter:
-    """Routes queries to appropriate experts using hybrid strategy"""
+    """
+    Routes queries to appropriate experts using hybrid strategy.
+
+    REFACTORED: Simplified with KISS principle
+    - Extracted magic numbers to RoutingConstants
+    - Broke down complex methods into focused helpers
+    - Improved code clarity
+    """
 
     def __init__(self, embedding_service=None):
         """
@@ -64,13 +80,8 @@ class ExpertRouter:
         self.logger = get_logger(self.__class__.__name__)
         self.embedding_service = embedding_service
         self._routing_cache = {}
-        self._metrics = {
-            'total_routes': 0,
-            'single_expert_routes': 0,
-            'multi_expert_routes': 0,
-            'fallback_routes': 0,
-            'by_expert': {expert: 0 for expert in MoESettings.EXPERT_TYPES}
-        }
+        self._metrics = RoutingMetrics()
+        self._scorer = RoutingScorer(embedding_service)
 
     def route(self, query: str, context: Dict[str, Any] = None) -> RoutingDecision:
         """
@@ -91,8 +102,6 @@ class ExpertRouter:
             self.logger.debug(f"Routing cache hit for query: {query[:50]}...")
             return self._routing_cache[cache_key]
 
-        self._metrics['total_routes'] += 1
-
         # Determine routing strategy
         strategy = MoESettings.ROUTING_STRATEGY
 
@@ -103,9 +112,6 @@ class ExpertRouter:
         else:  # hybrid
             decision = self._route_hybrid(query, context)
 
-        # Update metrics
-        self._update_metrics(decision)
-
         # Cache decision
         if MoESettings.CACHE_EXPERT_RESULTS:
             self._routing_cache[cache_key] = decision
@@ -115,26 +121,12 @@ class ExpertRouter:
     def _route_rule_based(self, query: str, context: Dict[str, Any]) -> RoutingDecision:
         """Rule-based routing using keywords"""
         query_lower = query.lower()
-        confidence_scores = {}
 
-        # Calculate score for each expert based on keyword matches
-        for expert_type, keywords in MoESettings.ROUTING_KEYWORDS.items():
-            score = 0.0
-            matched_keywords = []
-
-            for keyword in keywords:
-                if keyword.lower() in query_lower:
-                    score += 1.0
-                    matched_keywords.append(keyword)
-
-            # Normalize score
-            if keywords:
-                score = min(score / len(keywords) * 3, 1.0)  # Scale up but cap at 1.0
-
-            confidence_scores[expert_type] = score
+        # Calculate keyword scores using scorer
+        confidence_scores = self._scorer.calculate_keyword_scores(query_lower)
 
         # Select experts above threshold
-        selected_experts, query_type = self._select_experts(confidence_scores)
+        selected_experts, query_type, is_fallback = self._select_experts(confidence_scores)
 
         reasoning = f"Rule-based routing selected {len(selected_experts)} expert(s) based on keyword matching"
 
@@ -157,26 +149,11 @@ class ExpertRouter:
         # Get semantic similarity scores from embedding service
         confidence_scores = self.embedding_service.get_expert_similarities(query)
 
-        # Apply context boosting
-        if context:
-            if 'expert_hint' in context:
-                hint = context['expert_hint']
-                if hint in confidence_scores:
-                    confidence_scores[hint] = min(confidence_scores[hint] + 0.2, 1.0)
-
-            if 'entity_type' in context:
-                entity = context['entity_type']
-                if entity == 'deal' and 'deal_analysis' in confidence_scores:
-                    confidence_scores['deal_analysis'] = min(
-                        confidence_scores['deal_analysis'] + 0.15, 1.0
-                    )
-                elif entity == 'activity' and 'activity' in confidence_scores:
-                    confidence_scores['activity'] = min(
-                        confidence_scores['activity'] + 0.15, 1.0
-                    )
+        # Apply context boosting using scorer
+        confidence_scores = self._scorer.apply_context_boosts(confidence_scores, context)
 
         # Select experts above threshold
-        selected_experts, query_type = self._select_experts(confidence_scores)
+        selected_experts, query_type, is_fallback = self._select_experts(confidence_scores)
 
         reasoning = (
             f"Embedding-based routing selected {len(selected_experts)} expert(s) "
@@ -193,85 +170,16 @@ class ExpertRouter:
         )
 
     def _route_hybrid(self, query: str, context: Dict[str, Any]) -> RoutingDecision:
-        """Hybrid routing combining rules and context"""
-        query_lower = query.lower()
-        confidence_scores = {}
+        """
+        Hybrid routing combining multiple strategies.
 
-        # Step 1: Rule-based keyword matching
-        for expert_type, keywords in MoESettings.ROUTING_KEYWORDS.items():
-            score = 0.0
-
-            for keyword in keywords:
-                if keyword.lower() in query_lower:
-                    score += 1.0
-
-            # Normalize
-            if keywords:
-                score = min(score / len(keywords) * 3, 1.0)
-
-            confidence_scores[expert_type] = score
-
-        # Step 2: Context-based boosting
-        if context:
-            # Boost based on explicit hints
-            if 'expert_hint' in context:
-                hint = context['expert_hint']
-                if hint in confidence_scores:
-                    confidence_scores[hint] = min(confidence_scores[hint] + 0.3, 1.0)
-
-            # Boost based on entity type
-            if 'entity_type' in context:
-                entity = context['entity_type']
-                if entity == 'deal':
-                    confidence_scores['deal_analysis'] = min(
-                        confidence_scores.get('deal_analysis', 0) + 0.2, 1.0
-                    )
-                elif entity == 'activity':
-                    confidence_scores['activity'] = min(
-                        confidence_scores.get('activity', 0) + 0.2, 1.0
-                    )
-
-            # Boost based on previous expert success
-            if 'last_successful_expert' in context:
-                last_expert = context['last_successful_expert']
-                if last_expert in confidence_scores:
-                    confidence_scores[last_expert] = min(
-                        confidence_scores[last_expert] + 0.1, 1.0
-                    )
-
-        # Step 3: Pattern-based detection using extended patterns from settings
-        patterns = getattr(MoESettings, 'ROUTING_PATTERNS', {})
-        if not patterns:
-            # Fallback patterns if not defined in settings
-            patterns = {
-                'deal_analysis': [r'\bdeal\s+\d+\b', r'\banalyze\s+deal\b'],
-                'sentiment': [r'\bsentiment\b', r'\bfeeling\b'],
-                'risk_assessment': [r'\brisk\b', r'\bwarning\b'],
-                'search': [r'\bfind\b', r'\bsearch\b']
-            }
-
-        for expert_type, expert_patterns in patterns.items():
-            for pattern in expert_patterns:
-                if re.search(pattern, query_lower):
-                    confidence_scores[expert_type] = min(
-                        confidence_scores.get(expert_type, 0) + 0.25, 1.0
-                    )
-
-        # Step 4: Embedding-based boost (if available)
-        if self.embedding_service:
-            try:
-                semantic_scores = self.embedding_service.get_expert_similarities(query)
-                for expert_type, semantic_score in semantic_scores.items():
-                    # Blend rule-based and semantic scores (60% rules, 40% semantic)
-                    if expert_type in confidence_scores:
-                        blended = (0.6 * confidence_scores[expert_type] +
-                                   0.4 * semantic_score)
-                        confidence_scores[expert_type] = min(blended, 1.0)
-            except Exception as e:
-                self.logger.warning(f"Embedding scoring failed: {e}")
+        REFACTORED: Simplified by delegating to RoutingScorer
+        """
+        # Use scorer's convenient method for hybrid scoring
+        confidence_scores = self._scorer.calculate_hybrid_scores(query, context)
 
         # Select experts
-        selected_experts, query_type = self._select_experts(confidence_scores)
+        selected_experts, query_type, is_fallback = self._select_experts(confidence_scores)
 
         reasoning = (
             f"Hybrid routing selected {len(selected_experts)} expert(s) "
@@ -287,15 +195,19 @@ class ExpertRouter:
             metadata={'strategy': 'hybrid'}
         )
 
-    def _select_experts(self, confidence_scores: Dict[str, float]) -> Tuple[List[str], str]:
+    # ========================================================================
+    # Expert selection and metrics (scoring now delegated to RoutingScorer)
+    # ========================================================================
+
+    def _select_experts(self, confidence_scores: Dict[str, float]) -> Tuple[List[str], str, bool]:
         """
         Select experts based on confidence scores.
-        
+
         FIXED: When no expert meets threshold, select highest scoring
         expert instead of hardcoded default.
 
         Returns:
-            Tuple of (selected_experts list, query_type)
+            Tuple of (selected_experts list, query_type, is_fallback)
         """
         # Sort by confidence (highest first)
         sorted_experts = sorted(
@@ -305,7 +217,8 @@ class ExpertRouter:
         )
 
         threshold = MoESettings.ROUTING_CONFIDENCE_THRESHOLD
-        
+        is_fallback = False
+
         # Determine query type based on top expert
         if sorted_experts and sorted_experts[0][1] >= threshold:
             query_type = sorted_experts[0][0]
@@ -320,6 +233,7 @@ class ExpertRouter:
 
         # FIXED: If no experts selected, use HIGHEST SCORING (not hardcoded default!)
         if not selected:
+            is_fallback = True
             if sorted_experts and sorted_experts[0][1] > 0:
                 # Use the expert with highest score, even if below threshold
                 best_expert = sorted_experts[0][0]
@@ -337,49 +251,32 @@ class ExpertRouter:
                 self.logger.debug(
                     f"All expert scores are zero, using default: {MoESettings.DEFAULT_EXPERT}"
                 )
-            
-            self._metrics['fallback_routes'] += 1
 
         # If single expert and multi-expert disabled, keep only first
         if not MoESettings.ENABLE_MULTI_EXPERT and len(selected) > 1:
             selected = [selected[0]]
 
-        return selected, query_type
+        # Record metrics
+        self._metrics.record_route(selected, is_fallback)
 
-    def _update_metrics(self, decision: RoutingDecision):
-        """Update routing metrics"""
-        if len(decision.selected_experts) == 1:
-            self._metrics['single_expert_routes'] += 1
-        else:
-            self._metrics['multi_expert_routes'] += 1
-
-        for expert in decision.selected_experts:
-            if expert in self._metrics['by_expert']:
-                self._metrics['by_expert'][expert] += 1
+        return selected, query_type, is_fallback
 
     def _get_cache_key(self, query: str, context: Dict[str, Any]) -> str:
-        return generate_cache_key("routing", query, context=context)
+        """
+        Generate cache key for routing decisions.
+
+        REFACTORED: Now uses CacheKeyBuilder.build() for consistency.
+        """
+        from services.cache.base_cache import CacheKeyBuilder
+        return CacheKeyBuilder.build("routing", query, context=context)
 
     def get_metrics(self) -> Dict[str, Any]:
-        """Get routing metrics"""
-        metrics = self._metrics.copy()
-        if metrics['total_routes'] > 0:
-            metrics['multi_expert_rate'] = metrics['multi_expert_routes'] / metrics['total_routes']
-            metrics['fallback_rate'] = metrics['fallback_routes'] / metrics['total_routes']
-        else:
-            metrics['multi_expert_rate'] = 0.0
-            metrics['fallback_rate'] = 0.0
-        return metrics
+        """Get routing metrics (delegates to RoutingMetrics)"""
+        return self._metrics.get_metrics()
 
     def reset_metrics(self):
-        """Reset routing metrics"""
-        self._metrics = {
-            'total_routes': 0,
-            'single_expert_routes': 0,
-            'multi_expert_routes': 0,
-            'fallback_routes': 0,
-            'by_expert': {expert: 0 for expert in MoESettings.EXPERT_TYPES}
-        }
+        """Reset routing metrics (delegates to RoutingMetrics)"""
+        self._metrics.reset()
 
     def clear_cache(self):
         """Clear routing cache"""

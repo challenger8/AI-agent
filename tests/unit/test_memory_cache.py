@@ -2,17 +2,20 @@
 tests/unit/test_memory_cache.py
 -------------------------------
 Unit tests for MemoryCache and related cache classes.
+
+REFACTORED: Now uses BaseCacheInterfaceTests to eliminate duplication.
 """
 
 import pytest
 import time
-from services.cache.memory_cache import MemoryCache, LRUCache, create_memory_cache
+from services.cache.memory_cache import MemoryCache, create_memory_cache
 from services.cache.base_cache import (
     BaseCacheInterface,
     CacheKeyBuilder,
     CacheStats,
     generate_cache_key
 )
+from tests.unit.test_base_cache_interface import BaseCacheInterfaceTests
 
 
 class TestCacheKeyBuilder:
@@ -115,59 +118,26 @@ class TestCacheStats:
         assert result['misses'] == 0
 
 
-class TestMemoryCache:
-    """Tests for MemoryCache implementation"""
+class TestMemoryCache(BaseCacheInterfaceTests):
+    """
+    Tests for MemoryCache implementation.
+
+    REFACTORED: Inherits base tests from BaseCacheInterfaceTests to eliminate
+    duplication. Only memory-cache-specific tests are defined here.
+    """
+
+    @pytest.fixture
+    def cache(self):
+        """Provide MemoryCache instance for base tests"""
+        return MemoryCache(max_size=100, default_ttl=60)
 
     def test_implements_interface(self):
         """Test MemoryCache implements BaseCacheInterface"""
         cache = MemoryCache()
         assert isinstance(cache, BaseCacheInterface)
 
-    def test_set_and_get(self):
-        """Test basic set and get operations"""
-        cache = MemoryCache()
-        cache.set('key1', 'value1')
-        result = cache.get('key1')
-        assert result == 'value1'
-
-    def test_get_missing_key(self):
-        """Test get returns None for missing key"""
-        cache = MemoryCache()
-        result = cache.get('nonexistent')
-        assert result is None
-
-    def test_delete(self):
-        """Test delete operation"""
-        cache = MemoryCache()
-        cache.set('key1', 'value1')
-        result = cache.delete('key1')
-        assert result is True
-        assert cache.get('key1') is None
-
-    def test_delete_missing(self):
-        """Test delete returns False for missing key"""
-        cache = MemoryCache()
-        result = cache.delete('nonexistent')
-        assert result is False
-
-    def test_exists(self):
-        """Test exists operation"""
-        cache = MemoryCache()
-        cache.set('key1', 'value1')
-        assert cache.exists('key1') is True
-        assert cache.exists('nonexistent') is False
-
-    def test_clear(self):
-        """Test clear operation"""
-        cache = MemoryCache()
-        cache.set('key1', 'value1')
-        cache.set('key2', 'value2')
-        cache.clear()
-        assert cache.get('key1') is None
-        assert cache.get('key2') is None
-
-    def test_lru_eviction(self):
-        """Test LRU eviction when max_size reached"""
+    def test_lru_eviction_order(self):
+        """Test LRU eviction order (memory-cache-specific behavior)"""
         cache = MemoryCache(max_size=3)
         cache.set('key1', 'value1')
         cache.set('key2', 'value2')
@@ -178,31 +148,12 @@ class TestMemoryCache:
         cache.set('key4', 'value4')
 
         assert cache.exists('key1') is True  # Recently accessed
-        assert cache.exists('key2') is False  # Evicted
+        assert cache.exists('key2') is False  # Evicted (LRU)
         assert cache.exists('key3') is True
         assert cache.exists('key4') is True
 
-    def test_ttl_expiration(self):
-        """Test TTL expiration"""
-        cache = MemoryCache(default_ttl=1)  # 1 second TTL
-        cache.set('key1', 'value1')
-        assert cache.get('key1') == 'value1'
-
-        # Wait for expiration
-        time.sleep(1.5)
-        assert cache.get('key1') is None
-
-    def test_custom_ttl(self):
-        """Test custom TTL per entry"""
-        cache = MemoryCache(default_ttl=10)
-        cache.set('key1', 'value1', ttl=1)  # 1 second TTL
-        assert cache.get('key1') == 'value1'
-
-        time.sleep(1.5)
-        assert cache.get('key1') is None
-
-    def test_get_stats(self):
-        """Test get_stats returns correct information"""
+    def test_get_stats_structure(self):
+        """Test get_stats returns correct structure"""
         cache = MemoryCache(max_size=100)
         cache.set('key1', 'value1')
         cache.get('key1')  # Hit
@@ -213,68 +164,6 @@ class TestMemoryCache:
         assert stats['max_size'] == 100
         assert stats['hits'] == 1
         assert stats['misses'] == 1
-
-    def test_delete_pattern(self):
-        """Test delete_pattern removes matching keys"""
-        cache = MemoryCache()
-        cache.set('deal:1:analysis', 'value1')
-        cache.set('deal:2:analysis', 'value2')
-        cache.set('activity:1:summary', 'value3')
-
-        deleted = cache.delete_pattern('deal:*')
-        assert deleted == 2
-        assert cache.exists('deal:1:analysis') is False
-        assert cache.exists('activity:1:summary') is True
-
-    def test_cleanup_expired(self):
-        """Test cleanup_expired removes expired entries"""
-        cache = MemoryCache()
-        cache.set('key1', 'value1', ttl=1)
-        cache.set('key2', 'value2', ttl=10)
-
-        time.sleep(1.5)
-        removed = cache.cleanup_expired()
-
-        assert removed == 1
-        assert cache.exists('key1') is False
-        assert cache.exists('key2') is True
-
-    def test_generate_key_static(self):
-        """Test static generate_key method"""
-        key = MemoryCache.generate_key('deal', '123')
-        assert 'deal' in key
-        assert '123' in key
-
-    def test_hash_text_static(self):
-        """Test static hash_text method"""
-        hash1 = MemoryCache.hash_text('test text')
-        hash2 = MemoryCache.hash_text('test text')
-        assert hash1 == hash2
-
-    def test_reset_stats(self):
-        """Test reset_stats clears statistics"""
-        cache = MemoryCache()
-        cache.set('key1', 'value1')
-        cache.get('key1')
-        cache.reset_stats()
-
-        stats = cache.get_stats()
-        assert stats['hits'] == 0
-
-
-class TestLRUCache:
-    """Tests for LRUCache alias"""
-
-    def test_is_alias_for_memory_cache(self):
-        """Test LRUCache is an alias for MemoryCache"""
-        cache = LRUCache()
-        assert isinstance(cache, MemoryCache)
-
-    def test_basic_operations(self):
-        """Test basic operations work"""
-        cache = LRUCache()
-        cache.set('key', 'value')
-        assert cache.get('key') == 'value'
 
 
 class TestCreateMemoryCacheFactory:
