@@ -183,6 +183,63 @@ class CacheKeyBuilder:
         combined = f"{query}:{context_str}"
         return cls.hashed(prefix, combined)
 
+    @classmethod
+    def build(cls, prefix: str, *args, **kwargs) -> str:
+        """
+        UNIVERSAL cache key builder - consolidates all generation methods.
+
+        DRY: Single source of truth for ALL cache key generation.
+        Replaces 6 different implementations across the codebase.
+
+        Args:
+            prefix: Key prefix (e.g., 'deal', 'routing', 'search')
+            *args: Positional arguments to include in key
+            **kwargs: Keyword arguments to include in key
+
+        Returns:
+            Generated cache key (hashed for complex data, simple for basic)
+
+        Examples:
+            >>> CacheKeyBuilder.build('deal', '123')
+            'deal:123'
+
+            >>> CacheKeyBuilder.build('routing', 'query text', context={'hint': 'x'})
+            'routing:a1b2c3...'
+
+            >>> CacheKeyBuilder.build('search', 'query', type='deals', n=10)
+            'search:5f4d...'
+
+        Usage:
+            # Replace old patterns:
+            # OLD: generate_cache_key("prefix", arg1, arg2, key=val)
+            # NEW: CacheKeyBuilder.build("prefix", arg1, arg2, key=val)
+        """
+        # If no args/kwargs, just return prefix
+        if not args and not kwargs:
+            return prefix
+
+        # Simple case: just positional args, no kwargs
+        if not kwargs:
+            # If all args are simple types, use simple key
+            if all(isinstance(arg, (str, int, float, bool, type(None))) for arg in args):
+                return cls.simple(prefix, *args)
+            # Otherwise hash complex args
+            return cls.hashed(prefix, args)
+
+        # Complex case: has kwargs (need hashing)
+        # Build deterministic string from args + kwargs
+        key_parts = [str(arg) for arg in args]
+        key_parts.extend(f"{k}={v}" for k, v in sorted(kwargs.items()))
+        combined = ":".join(key_parts)
+
+        # Hash if combined string is long or has complex data
+        if len(combined) > 100 or any(isinstance(arg, (dict, list, tuple)) for arg in args):
+            hash_value = hashlib.sha256(combined.encode()).hexdigest()[:16]
+            return f"{prefix}{cls.SEPARATOR}{hash_value}"
+
+        # Otherwise use simple key
+        return f"{prefix}{cls.SEPARATOR}{combined}"
+
 
 class CacheStats:
     """

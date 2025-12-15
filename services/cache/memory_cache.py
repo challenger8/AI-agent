@@ -224,8 +224,13 @@ class MemoryCache(BaseCacheInterface):
     # Key generation methods (for compatibility)
     @staticmethod
     def generate_key(*args, **kwargs) -> str:
-        """Generate cache key"""
-        return CacheKeyBuilder.simple("cache", *args)
+        """
+        Generate cache key.
+
+        DEPRECATED: Use CacheKeyBuilder.build() instead.
+        Maintained for backward compatibility.
+        """
+        return CacheKeyBuilder.build("cache", *args, **kwargs)
 
     @staticmethod
     def hash_text(text: str) -> str:

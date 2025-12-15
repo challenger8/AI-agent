@@ -199,8 +199,17 @@ class TwoLevelCache:
 
     # Pass-through methods for compatibility
     def generate_key(self, *parts: str) -> str:
-        """Generate cache key (delegate to Redis cache)"""
-        return self.redis_cache.generate_key(*parts)
+        """
+        Generate cache key.
+
+        REFACTORED: Now uses CacheKeyBuilder.build() for consistency.
+        """
+        from services.cache.base_cache import CacheKeyBuilder
+        if not parts:
+            return ""
+        prefix = str(parts[0]) if parts else ""
+        remaining = parts[1:] if len(parts) > 1 else ()
+        return CacheKeyBuilder.build(prefix, *remaining) if parts else ""
 
     def is_available(self) -> bool:
         """Check if cache is available"""

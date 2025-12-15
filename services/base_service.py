@@ -9,20 +9,25 @@ from typing import Any, Dict, Optional
 
 from utils.logging_config import get_logger
 from utils.exceptions import ServiceError
+from utils.mixins import CacheableMixin
 
-class BaseService(ABC):
-    """Base class for all services"""
-    
+class BaseService(CacheableMixin, ABC):
+    """
+    Base class for all services.
+
+    REFACTORED: Now uses CacheableMixin for DRY cache operations.
+    """
+
     def __init__(self, repositories=None):
         """
         Initialize base service
-        
+
         Args:
             repositories: Database repositories instance
         """
+        super().__init__()
         self.repositories = repositories
         self.logger = get_logger(self.__class__.__name__)
-        self._cache = {}
 
     def _validate_required_fields(self, data: Dict[str, Any], required_fields: list) -> None:
         """
@@ -38,19 +43,13 @@ class BaseService(ABC):
         missing_fields = [field for field in required_fields if field not in data or data[field] is None]
         if missing_fields:
             raise ServiceError(f"Missing required fields: {', '.join(missing_fields)}")
-    
-    def _get_from_cache(self, key: str) -> Optional[Any]:
-        """Get value from cache"""
-        return self._cache.get(key)
-    
-    def _set_cache(self, key: str, value: Any) -> None:
-        """Set value in cache"""
-        self._cache[key] = value
-    
-    def _clear_cache(self) -> None:
-        """Clear all cached values"""
-        self._cache.clear()
-    
+
+    # Cache methods inherited from CacheableMixin:
+    # - _get_from_cache(key)
+    # - _set_cache(key, value)
+    # - _clear_cache()
+    # - _has_cache(key)
+
     def _safe_execute(self, operation_name: str, operation_func, *args, **kwargs) -> Any:
         """
         Safely execute an operation with logging and error handling

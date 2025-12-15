@@ -12,6 +12,7 @@ from datetime import datetime
 
 from utils.logging_config import get_logger
 from utils.exceptions import ServiceError
+from utils.mixins import CacheableMixin
 from utils.keyword_matcher import KeywordMatcher, DealIdExtractor
 from config.constants import ConfidenceConfig
 
@@ -76,8 +77,12 @@ class ExpertResult:
         )
 
 
-class BaseExpert(ABC):
-    """Abstract base class for all experts"""
+class BaseExpert(CacheableMixin, ABC):
+    """
+    Abstract base class for all experts.
+
+    REFACTORED: Now uses CacheableMixin for DRY cache operations.
+    """
 
     def __init__(self, repositories=None, services: Dict[str, Any] = None):
         """
@@ -87,10 +92,10 @@ class BaseExpert(ABC):
             repositories: Database repositories instance
             services: Dictionary of available services
         """
+        super().__init__()
         self.repositories = repositories
         self.services = services or {}
         self.logger = get_logger(self.__class__.__name__)
-        self._cache = {}
         self._metrics = {
             'total_calls': 0,
             'successful_calls': 0,
@@ -313,17 +318,11 @@ class BaseExpert(ABC):
             'average_confidence': 0.0
         }
 
-    def _get_from_cache(self, key: str) -> Optional[Any]:
-        """Get value from cache"""
-        return self._cache.get(key)
-
-    def _set_cache(self, key: str, value: Any) -> None:
-        """Set value in cache"""
-        self._cache[key] = value
-
-    def _clear_cache(self) -> None:
-        """Clear all cached values"""
-        self._cache.clear()
+    # Cache methods inherited from CacheableMixin:
+    # - _get_from_cache(key)
+    # - _set_cache(key, value)
+    # - _clear_cache()
+    # - _has_cache(key)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(type={self.expert_type})"

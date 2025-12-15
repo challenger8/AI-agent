@@ -433,8 +433,13 @@ class ExpertRouter:
                 self._metrics['by_expert'][expert] += 1
 
     def _get_cache_key(self, query: str, context: Dict[str, Any]) -> str:
-        """Generate cache key"""
-        return generate_cache_key("routing", query, context=context)
+        """
+        Generate cache key for routing decisions.
+
+        REFACTORED: Now uses CacheKeyBuilder.build() for consistency.
+        """
+        from services.cache.base_cache import CacheKeyBuilder
+        return CacheKeyBuilder.build("routing", query, context=context)
 
     def get_metrics(self) -> Dict[str, Any]:
         """Get routing metrics"""

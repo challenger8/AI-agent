@@ -331,7 +331,10 @@ class CacheService:
     @staticmethod
     def generate_key(*parts: str) -> str:
         """
-        Generate cache key from parts
+        Generate cache key from parts.
+
+        DEPRECATED: Use CacheKeyBuilder.build() instead.
+        Maintained for backward compatibility.
 
         Args:
             *parts: Key parts to join
@@ -343,7 +346,12 @@ class CacheService:
             generate_key("sentiment", "text", "abc123")
             -> "sentiment:text:abc123"
         """
-        return ":".join(str(p) for p in parts)
+        if not parts:
+            return ""
+        # Use CacheKeyBuilder for consistency
+        prefix = str(parts[0]) if parts else ""
+        remaining = parts[1:] if len(parts) > 1 else ()
+        return CacheKeyBuilder.build(prefix, *remaining) if parts else ""
 
     @staticmethod
     def hash_text(text: str) -> str:

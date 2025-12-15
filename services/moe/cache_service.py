@@ -40,6 +40,7 @@ class CacheService(MemoryCache):
         """
         Generate cache key from arguments.
 
+        REFACTORED: Now uses CacheKeyBuilder.build() for consistency.
         Maintains backward compatibility with existing signature.
 
         Args:
@@ -49,11 +50,8 @@ class CacheService(MemoryCache):
         Returns:
             Hash key
         """
-        import hashlib
-        key_parts = [str(arg) for arg in args]
-        key_parts.extend(f"{k}={v}" for k, v in sorted(kwargs.items()))
-        key_str = ":".join(key_parts)
-        return hashlib.sha256(key_str.encode()).hexdigest()
+        # Use universal cache key builder
+        return CacheKeyBuilder.build("moe", *args, **kwargs)
 
 
 class ExpertResultCache(CacheService):

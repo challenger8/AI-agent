@@ -73,18 +73,20 @@ class RAGSearchCacheService:
     
     def _generate_cache_key(self, query: str, search_type: str, n_results: int) -> str:
         """
-        Generate cache key from query parameters
-        
+        Generate cache key from query parameters.
+
+        REFACTORED: Now uses CacheKeyBuilder.build() for consistency.
+
         Args:
             query: Search query
             search_type: Type of search
             n_results: Number of results
-            
+
         Returns:
             Cache key
         """
-        key_str = f"{query}:{search_type}:{n_results}"
-        return hashlib.md5(key_str.encode()).hexdigest()
+        from services.cache.base_cache import CacheKeyBuilder
+        return CacheKeyBuilder.build("rag_search", query, search_type=search_type, n_results=n_results)
     
     def get(self, query: str, search_type: str, n_results: int) -> Optional[Dict[str, Any]]:
         """
