@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 from ..base_expert import BaseExpert, ExpertResult
 from config.moe_settings import MoESettings
 from config.settings import AnalysisSettings
+from config.constants import RiskAnalysisConfig
 
 
 class RiskAssessmentExpert(BaseExpert):
@@ -140,7 +141,7 @@ class RiskAssessmentExpert(BaseExpert):
             medium_risk = []
             low_risk = []
 
-            for deal in deals[:50]:  # Limit for performance
+            for deal in deals[:RiskAnalysisConfig.MAX_DEALS_TO_ANALYZE]:  # Limit for performance
                 deal_id = deal.get('id')
                 if not deal_id:
                     continue
@@ -271,9 +272,9 @@ class RiskAssessmentExpert(BaseExpert):
 
         percentage = len(high_risk_deals) / total_analyzed * 100 if total_analyzed > 0 else 0
 
-        if percentage >= 30:
+        if percentage >= RiskAnalysisConfig.CRITICAL_RISK_PERCENTAGE:
             return f"Critical: {len(high_risk_deals)} deals ({percentage:.1f}%) are at high risk"
-        elif percentage >= 15:
+        elif percentage >= RiskAnalysisConfig.WARNING_RISK_PERCENTAGE:
             return f"Warning: {len(high_risk_deals)} deals ({percentage:.1f}%) need attention"
         else:
             return f"Moderate: {len(high_risk_deals)} deals require monitoring"
@@ -286,11 +287,12 @@ class RiskAssessmentExpert(BaseExpert):
         actions = []
         sorted_deals = sorted(high_risk_deals, key=lambda x: x.get('health_score', 100))
 
-        for deal in sorted_deals[:3]:  # Top 3 priority
+        max_priority = RiskAnalysisConfig.MAX_HIGH_RISK_DEALS_TO_SHOW
+        for deal in sorted_deals[:max_priority]:  # Top priority deals
             actions.append(f"Urgent: Review deal {deal['deal_id']} (health: {deal['health_score']})")
 
-        if len(high_risk_deals) > 3:
-            actions.append(f"Review remaining {len(high_risk_deals) - 3} high-risk deals")
+        if len(high_risk_deals) > max_priority:
+            actions.append(f"Review remaining {len(high_risk_deals) - max_priority} high-risk deals")
 
         return actions
 

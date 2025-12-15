@@ -11,6 +11,7 @@ from typing import Any, Optional, Union
 from datetime import timedelta
 from collections import OrderedDict
 from utils.logging_config import get_logger
+from config.constants import CacheConfig
 
 import threading
 try:
@@ -87,9 +88,9 @@ class CacheService:
                 db=self.db,
                 password=self.password,
                 decode_responses=True,
-                socket_connect_timeout=5,
-                socket_timeout=5,
-                max_connections=10
+                socket_connect_timeout=CacheConfig.SOCKET_CONNECT_TIMEOUT,
+                socket_timeout=CacheConfig.SOCKET_TIMEOUT,
+                max_connections=CacheConfig.MAX_CONNECTIONS
             )
             
             self.redis_client = redis.Redis(connection_pool=pool)

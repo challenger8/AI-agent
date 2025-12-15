@@ -31,34 +31,15 @@ class DealRepository(BaseRepository[Deal]):
             # ... rest of mapping
         )
     
-    # NOW THESE BECOME ONE-LINERS:
+    # NOW THESE BECOME ONE-LINERS using generic create!
     def create_deal(self, deal: Deal) -> Optional[str]:
-        """Create new deal"""
-        try:
-            query = """
-            INSERT INTO deals (id, title, description, register_time, price, 
-                            status, pipeline_stage_id, pipeline_id, change_to_won_time, 
-                            change_to_loss_time, last_tracking_time, next_tracking_time, 
-                            probability, contact_id, label_id, lost_reason_id, 
-                            lost_reason_note, lost_reason_other, is_idle, is_rotten, 
-                            is_rotten_in_stage, fields, last_update_time, items, mobile_phone)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            now = datetime.now()
-            params = (
-                deal.Id, deal.Title, deal.Description, deal.RegisterTime or now,
-                deal.Price, deal.Status, deal.PipelineStageId, deal.PipelineId,
-                deal.ChangeToWonTime, deal.ChangeToLossTime, deal.LastTrackingTime,
-                deal.NextTrackingTime, deal.Probability, deal.ContactId, 
-                deal.LabelId, deal.LostReasonId, deal.LostReasonNote, 
-                deal.LostReasonOther, deal.IsIdle, deal.IsRotten, 
-                deal.IsRottenInStage, deal.Fields, now, deal.Items, deal.MobilePhone
-            )
-            self.db.execute_insert(query, params)
-            return deal.Id
-        except Exception as e:
-            self.logger.error(f"Error creating deal: {e}")
-            return None
+        """Create new deal using generic create method"""
+        # Set default timestamps if not provided
+        if not deal.RegisterTime:
+            deal.RegisterTime = datetime.now()
+        if not deal.LastUpdateTime:
+            deal.LastUpdateTime = datetime.now()
+        return self.create_generic(deal)
     def get_all_deals(self) -> List[Deal]:
         return self.get_all(order_by="register_time DESC")
     
@@ -95,31 +76,13 @@ class DealActivityRepository(BaseRepository[DealActivity]):
             # ... rest of mapping
         )
     def create_activity(self, activity: DealActivity) -> Optional[str]:
-        """Create new activity"""
-        try:
-            query = """
-            INSERT INTO deal_activities (id, title, note, result_note, 
-                                        activity_type_id, is_done, 
-                                        due_date, finish_date, done_date, 
-                                        register_date, last_update_time, 
-                                        deal_id, creator_id, owner_id,
-                                        sentiment_score, sentiment_label)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            now = datetime.now()
-            params = (
-                activity.id, activity.title, activity.note, activity.resultnote,
-                activity.activitytypeid, activity.isdone,
-                activity.duedate, activity.finishdate, activity.donedate, 
-                activity.registerdate or now, now, activity.dealid,
-                activity.creatorid, activity.ownerid,
-                activity.sentiment_score, activity.sentiment_label
-            )
-            self.db.execute_insert(query, params)
-            return activity.id
-        except Exception as e:
-            self.logger.error(f"Error creating activity: {e}")
-            return None
+        """Create new activity using generic create method"""
+        # Set default timestamps if not provided
+        if not activity.registerdate:
+            activity.registerdate = datetime.now()
+        if not activity.lastupdatetime:
+            activity.lastupdatetime = datetime.now()
+        return self.create_generic(activity)
     def update_activity_sentiment(self, activity_id: str, sentiment_score: float, sentiment_label: str) -> bool:
         """Update activity with sentiment analysis results"""
         try:
@@ -188,21 +151,8 @@ class CRMAgentRepository(BaseRepository[CRMAgent]):
     # =========================================
     
     def create_agent(self, agent: CRMAgent) -> Optional[str]:
-        """Create new agent"""
-        query = """
-        INSERT INTO crm_agents (id, group_owner, owner_name, admin_id, 
-                           role, phone, mobile_phone, personal_id, group_phone)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        params = (
-            agent.id, agent.groupowner, agent.ownername, agent.adminid,
-            agent.role, agent.phone, agent.mobilephone, agent.personalid,
-            agent.groupphone
-        )
-        
-        if self._execute_write(query, params, error_context="creating agent"):
-            return agent.id
-        return None
+        """Create new agent using generic create method"""
+        return self.create_generic(agent)
     
     def get_agent_performance(self, agent_id: str) -> Dict[str, Any]:
         """Get performance metrics for an agent (custom query)"""
@@ -249,24 +199,11 @@ class SentimentRepository(BaseRepository[SentimentAnalysis]):
         return SentimentAnalysis.from_dict(dict(row))
 
     def save_sentiment(self, sentiment: SentimentAnalysis) -> Optional[int]:
-        """Save sentiment analysis result"""
-        try:
-            query = """
-            INSERT INTO sentiment_analysis (id, text, language, label, score, polarity,
-                                        subjectivity, model_name, model_version,
-                                        processed_at, deal_id, activity_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            params = (
-                sentiment.id, sentiment.text, sentiment.language, sentiment.label, sentiment.score,
-                sentiment.polarity, sentiment.subjectivity, sentiment.model_name,
-                sentiment.model_version, sentiment.processed_at or datetime.now(),
-                sentiment.deal_id, sentiment.activity_id
-            )
-            return self.db.execute_insert(query, params)
-        except Exception as e:
-            self.logger.error(f"Error saving sentiment: {e}")
-            return None
+        """Save sentiment analysis result using generic create method"""
+        # Set default timestamp if not provided
+        if not sentiment.processed_at:
+            sentiment.processed_at = datetime.now()
+        return self.create_generic(sentiment)
 
     def get_sentiment_by_activity(self, activity_id: str) -> Optional[SentimentAnalysis]:
         """Get sentiment analysis for an activity"""
