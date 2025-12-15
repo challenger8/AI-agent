@@ -54,15 +54,15 @@ class BaseService(ABC):
     def _safe_execute(self, operation_name: str, operation_func, *args, **kwargs) -> Any:
         """
         Safely execute an operation with logging and error handling
-        
+
         Args:
             operation_name: Name of the operation for logging
             operation_func: Function to execute
             *args, **kwargs: Arguments to pass to the function
-            
+
         Returns:
             Result of the operation
-            
+
         Raises:
             ServiceError: If operation fails
         """
@@ -74,6 +74,46 @@ class BaseService(ABC):
         except Exception as e:
             self.logger.error(f"Operation failed: {operation_name} - {str(e)}")
             raise ServiceError(f"{operation_name} failed: {str(e)}")
+
+    def _handle_error(
+        self,
+        operation: str,
+        error: Exception,
+        return_dict: bool = True,
+        raise_error: bool = False
+    ) -> Any:
+        """
+        DRY: Consolidated error handling for all services.
+
+        Eliminates duplicate try-except-log-return patterns across services.
+
+        Args:
+            operation: Operation description (e.g., "analyzing sentiment")
+            error: Exception that occurred
+            return_dict: If True, return {"error": str(error)} dict
+            raise_error: If True, raise ServiceError instead of returning
+
+        Returns:
+            Error dict if return_dict=True, None otherwise
+
+        Raises:
+            ServiceError: If raise_error=True
+
+        Usage:
+            try:
+                result = do_something()
+            except Exception as e:
+                return self._handle_error("doing something", e)
+        """
+        self.logger.error(f"Error {operation}: {error}")
+
+        if raise_error:
+            raise ServiceError(f"{operation} failed: {error}")
+
+        if return_dict:
+            return {"error": str(error)}
+
+        return None
     async def _safe_initialize(
         self,
         init_func,

@@ -1,8 +1,12 @@
 """
-services/moe/expert_router.py
------------------------------
-Expert router for Mixture of Experts system
-Classifies queries and routes to appropriate expert(s)
+services/moe/expert_router_refactored.py
+-----------------------------------------
+REFACTORED: Simplified expert router with KISS principle
+
+Changes:
+- Extracted magic numbers to named constants
+- Broke down complex _route_hybrid() into smaller methods
+- Improved readability and maintainability
 """
 
 from dataclasses import dataclass, field
@@ -12,6 +16,7 @@ import re
 from services.cache_service import generate_cache_key
 
 from config.moe_settings import MoESettings
+from config.routing_constants import RoutingConstants
 from utils.logging_config import get_logger
 
 
@@ -52,7 +57,14 @@ class RoutingDecision:
 
 
 class ExpertRouter:
-    """Routes queries to appropriate experts using hybrid strategy"""
+    """
+    Routes queries to appropriate experts using hybrid strategy.
+
+    REFACTORED: Simplified with KISS principle
+    - Extracted magic numbers to RoutingConstants
+    - Broke down complex methods into focused helpers
+    - Improved code clarity
+    """
 
     def __init__(self, embedding_service=None):
         """
@@ -115,23 +127,9 @@ class ExpertRouter:
     def _route_rule_based(self, query: str, context: Dict[str, Any]) -> RoutingDecision:
         """Rule-based routing using keywords"""
         query_lower = query.lower()
-        confidence_scores = {}
 
-        # Calculate score for each expert based on keyword matches
-        for expert_type, keywords in MoESettings.ROUTING_KEYWORDS.items():
-            score = 0.0
-            matched_keywords = []
-
-            for keyword in keywords:
-                if keyword.lower() in query_lower:
-                    score += 1.0
-                    matched_keywords.append(keyword)
-
-            # Normalize score
-            if keywords:
-                score = min(score / len(keywords) * 3, 1.0)  # Scale up but cap at 1.0
-
-            confidence_scores[expert_type] = score
+        # Calculate keyword scores
+        confidence_scores = self._calculate_keyword_scores(query_lower)
 
         # Select experts above threshold
         selected_experts, query_type = self._select_experts(confidence_scores)
@@ -158,22 +156,7 @@ class ExpertRouter:
         confidence_scores = self.embedding_service.get_expert_similarities(query)
 
         # Apply context boosting
-        if context:
-            if 'expert_hint' in context:
-                hint = context['expert_hint']
-                if hint in confidence_scores:
-                    confidence_scores[hint] = min(confidence_scores[hint] + 0.2, 1.0)
-
-            if 'entity_type' in context:
-                entity = context['entity_type']
-                if entity == 'deal' and 'deal_analysis' in confidence_scores:
-                    confidence_scores['deal_analysis'] = min(
-                        confidence_scores['deal_analysis'] + 0.15, 1.0
-                    )
-                elif entity == 'activity' and 'activity' in confidence_scores:
-                    confidence_scores['activity'] = min(
-                        confidence_scores['activity'] + 0.15, 1.0
-                    )
+        confidence_scores = self._apply_context_boosts(confidence_scores, context)
 
         # Select experts above threshold
         selected_experts, query_type = self._select_experts(confidence_scores)
@@ -193,82 +176,24 @@ class ExpertRouter:
         )
 
     def _route_hybrid(self, query: str, context: Dict[str, Any]) -> RoutingDecision:
-        """Hybrid routing combining rules and context"""
+        """
+        Hybrid routing combining multiple strategies.
+
+        REFACTORED: Simplified by delegating to focused helper methods
+        """
         query_lower = query.lower()
-        confidence_scores = {}
 
-        # Step 1: Rule-based keyword matching
-        for expert_type, keywords in MoESettings.ROUTING_KEYWORDS.items():
-            score = 0.0
+        # Step 1: Calculate keyword scores
+        confidence_scores = self._calculate_keyword_scores(query_lower)
 
-            for keyword in keywords:
-                if keyword.lower() in query_lower:
-                    score += 1.0
+        # Step 2: Apply context boosts
+        confidence_scores = self._apply_context_boosts(confidence_scores, context)
 
-            # Normalize
-            if keywords:
-                score = min(score / len(keywords) * 3, 1.0)
+        # Step 3: Apply pattern matching boosts
+        confidence_scores = self._apply_pattern_boosts(confidence_scores, query_lower)
 
-            confidence_scores[expert_type] = score
-
-        # Step 2: Context-based boosting
-        if context:
-            # Boost based on explicit hints
-            if 'expert_hint' in context:
-                hint = context['expert_hint']
-                if hint in confidence_scores:
-                    confidence_scores[hint] = min(confidence_scores[hint] + 0.3, 1.0)
-
-            # Boost based on entity type
-            if 'entity_type' in context:
-                entity = context['entity_type']
-                if entity == 'deal':
-                    confidence_scores['deal_analysis'] = min(
-                        confidence_scores.get('deal_analysis', 0) + 0.2, 1.0
-                    )
-                elif entity == 'activity':
-                    confidence_scores['activity'] = min(
-                        confidence_scores.get('activity', 0) + 0.2, 1.0
-                    )
-
-            # Boost based on previous expert success
-            if 'last_successful_expert' in context:
-                last_expert = context['last_successful_expert']
-                if last_expert in confidence_scores:
-                    confidence_scores[last_expert] = min(
-                        confidence_scores[last_expert] + 0.1, 1.0
-                    )
-
-        # Step 3: Pattern-based detection using extended patterns from settings
-        patterns = getattr(MoESettings, 'ROUTING_PATTERNS', {})
-        if not patterns:
-            # Fallback patterns if not defined in settings
-            patterns = {
-                'deal_analysis': [r'\bdeal\s+\d+\b', r'\banalyze\s+deal\b'],
-                'sentiment': [r'\bsentiment\b', r'\bfeeling\b'],
-                'risk_assessment': [r'\brisk\b', r'\bwarning\b'],
-                'search': [r'\bfind\b', r'\bsearch\b']
-            }
-
-        for expert_type, expert_patterns in patterns.items():
-            for pattern in expert_patterns:
-                if re.search(pattern, query_lower):
-                    confidence_scores[expert_type] = min(
-                        confidence_scores.get(expert_type, 0) + 0.25, 1.0
-                    )
-
-        # Step 4: Embedding-based boost (if available)
-        if self.embedding_service:
-            try:
-                semantic_scores = self.embedding_service.get_expert_similarities(query)
-                for expert_type, semantic_score in semantic_scores.items():
-                    # Blend rule-based and semantic scores (60% rules, 40% semantic)
-                    if expert_type in confidence_scores:
-                        blended = (0.6 * confidence_scores[expert_type] +
-                                   0.4 * semantic_score)
-                        confidence_scores[expert_type] = min(blended, 1.0)
-            except Exception as e:
-                self.logger.warning(f"Embedding scoring failed: {e}")
+        # Step 4: Blend with semantic scores (if available)
+        confidence_scores = self._blend_semantic_scores(confidence_scores, query)
 
         # Select experts
         selected_experts, query_type = self._select_experts(confidence_scores)
@@ -287,10 +212,160 @@ class ExpertRouter:
             metadata={'strategy': 'hybrid'}
         )
 
+    # ========================================================================
+    # REFACTORED: Helper methods extracted from complex _route_hybrid()
+    # ========================================================================
+
+    def _calculate_keyword_scores(self, query_lower: str) -> Dict[str, float]:
+        """
+        Calculate expert scores based on keyword matching.
+
+        Args:
+            query_lower: Lowercased query string
+
+        Returns:
+            Dictionary of expert -> confidence score
+        """
+        confidence_scores = {}
+
+        for expert_type, keywords in MoESettings.ROUTING_KEYWORDS.items():
+            score = 0.0
+
+            for keyword in keywords:
+                if keyword.lower() in query_lower:
+                    score += 1.0
+
+            # Normalize using named constant
+            if keywords:
+                score = min(
+                    score / len(keywords) * RoutingConstants.KEYWORD_SCORE_MULTIPLIER,
+                    RoutingConstants.MAX_KEYWORD_SCORE
+                )
+
+            confidence_scores[expert_type] = score
+
+        return confidence_scores
+
+    def _apply_context_boosts(
+        self,
+        scores: Dict[str, float],
+        context: Dict[str, Any]
+    ) -> Dict[str, float]:
+        """
+        Apply context-based boosts to confidence scores.
+
+        Args:
+            scores: Current confidence scores
+            context: Context dictionary
+
+        Returns:
+            Updated confidence scores
+        """
+        if not context:
+            return scores
+
+        # Boost based on explicit hints
+        if 'expert_hint' in context:
+            hint = context['expert_hint']
+            if hint in scores:
+                scores[hint] = min(
+                    scores[hint] + RoutingConstants.EXPERT_HINT_BOOST,
+                    RoutingConstants.MAX_KEYWORD_SCORE
+                )
+
+        # Boost based on entity type
+        if 'entity_type' in context:
+            entity = context['entity_type']
+            if entity == 'deal' and 'deal_analysis' in scores:
+                scores['deal_analysis'] = min(
+                    scores.get('deal_analysis', 0) + RoutingConstants.ENTITY_TYPE_BOOST,
+                    RoutingConstants.MAX_KEYWORD_SCORE
+                )
+            elif entity == 'activity' and 'activity' in scores:
+                scores['activity'] = min(
+                    scores.get('activity', 0) + RoutingConstants.ENTITY_TYPE_BOOST,
+                    RoutingConstants.MAX_KEYWORD_SCORE
+                )
+
+        # Boost based on previous expert success
+        if 'last_successful_expert' in context:
+            last_expert = context['last_successful_expert']
+            if last_expert in scores:
+                scores[last_expert] = min(
+                    scores[last_expert] + RoutingConstants.LAST_SUCCESSFUL_BOOST,
+                    RoutingConstants.MAX_KEYWORD_SCORE
+                )
+
+        return scores
+
+    def _apply_pattern_boosts(
+        self,
+        scores: Dict[str, float],
+        query_lower: str
+    ) -> Dict[str, float]:
+        """
+        Apply pattern matching boosts to confidence scores.
+
+        Args:
+            scores: Current confidence scores
+            query_lower: Lowercased query string
+
+        Returns:
+            Updated confidence scores
+        """
+        patterns = getattr(MoESettings, 'ROUTING_PATTERNS', {})
+
+        for expert_type, expert_patterns in patterns.items():
+            for pattern in expert_patterns:
+                if re.search(pattern, query_lower):
+                    scores[expert_type] = min(
+                        scores.get(expert_type, 0) + RoutingConstants.PATTERN_MATCH_BOOST,
+                        RoutingConstants.MAX_KEYWORD_SCORE
+                    )
+
+        return scores
+
+    def _blend_semantic_scores(
+        self,
+        scores: Dict[str, float],
+        query: str
+    ) -> Dict[str, float]:
+        """
+        Blend rule-based scores with semantic similarity scores.
+
+        Args:
+            scores: Current confidence scores
+            query: Query string
+
+        Returns:
+            Blended confidence scores
+        """
+        if not self.embedding_service:
+            return scores
+
+        try:
+            semantic_scores = self.embedding_service.get_expert_similarities(query)
+            for expert_type, semantic_score in semantic_scores.items():
+                if expert_type in scores:
+                    # Blend using named constants
+                    blended = (
+                        RoutingConstants.RULE_BASED_WEIGHT * scores[expert_type] +
+                        RoutingConstants.SEMANTIC_WEIGHT * semantic_score
+                    )
+                    scores[expert_type] = min(blended, RoutingConstants.MAX_KEYWORD_SCORE)
+        except Exception as e:
+            self.logger.warning(f"Embedding scoring failed: {e}")
+
+        return scores
+
+    # ========================================================================
+    # Expert selection and metrics
+    # ========================================================================
+
     def _select_experts(self, confidence_scores: Dict[str, float]) -> Tuple[List[str], str]:
         """
         Select experts based on confidence scores.
-        
+
         FIXED: When no expert meets threshold, select highest scoring
         expert instead of hardcoded default.
 
@@ -305,7 +380,7 @@ class ExpertRouter:
         )
 
         threshold = MoESettings.ROUTING_CONFIDENCE_THRESHOLD
-        
+
         # Determine query type based on top expert
         if sorted_experts and sorted_experts[0][1] >= threshold:
             query_type = sorted_experts[0][0]
@@ -337,7 +412,7 @@ class ExpertRouter:
                 self.logger.debug(
                     f"All expert scores are zero, using default: {MoESettings.DEFAULT_EXPERT}"
                 )
-            
+
             self._metrics['fallback_routes'] += 1
 
         # If single expert and multi-expert disabled, keep only first
@@ -358,6 +433,7 @@ class ExpertRouter:
                 self._metrics['by_expert'][expert] += 1
 
     def _get_cache_key(self, query: str, context: Dict[str, Any]) -> str:
+        """Generate cache key"""
         return generate_cache_key("routing", query, context=context)
 
     def get_metrics(self) -> Dict[str, Any]:
