@@ -73,29 +73,32 @@ class BatchEmbeddingService:
     
     async def initialize_model(self, model_name: str = None):
         """
-        Initialize or load embedding model
-        
+        Initialize or load embedding model.
+
+        REFACTORED: Now uses ModelLoader for consistent patterns.
+
         Args:
             model_name: Model name (uses RAGSettings if None)
         """
         try:
-            if self.model is not None:
-                self.logger.info("Model already loaded")
+            # DRY: Use centralized "already loaded" check
+            from utils.model_loader import ModelLoader
+
+            if ModelLoader.check_already_loaded(self.model, "Embedding model"):
                 return True
-            
+
             model_name = model_name or RAGSettings.EMBEDDING_MODEL
             self.logger.info(f"Loading embedding model: {model_name}")
-            
+
             # Lazy import to avoid startup slowdown
             from sentence_transformers import SentenceTransformer
-            import os
-            
-            os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-            os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-            
+
+            # DRY: Use centralized environment setup
+            ModelLoader.setup_minimal_logging()
+
             device = RAGSettings.EMBEDDING_DEVICE
             self.model = SentenceTransformer(model_name, device=device)
-            
+
             self.logger.info(f"✅ Model loaded on device: {device}")
             return True
         except Exception as e:

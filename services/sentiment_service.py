@@ -28,31 +28,36 @@ class SentimentService(BaseService):
     
     async def initialize(self) -> bool:
         """
-        Initialize Qwen2 model for prompt-based sentiment analysis
-        
+        Initialize Qwen2 model for prompt-based sentiment analysis.
+
+        REFACTORED: Now uses ModelLoader for consistent patterns.
+
         Returns:
             True if initialization successful, False otherwise
         """
         if not self.available:
             self.logger.warning("Sentiment analysis not available - transformers not installed")
             return False
-        
-        if self.model_loaded:
+
+        # DRY: Use centralized "already loaded" check pattern
+        from utils.model_loader import ModelLoader
+
+        if self.model_loaded and ModelLoader.check_already_loaded(self.model, "Sentiment model"):
             return True
-        
+
         try:
             self.logger.info("Loading Qwen2 sentiment model...")
-            
+
             from transformers import AutoModelForCausalLM, AutoTokenizer
             import torch
-            
+
             # Load tokenizer
             self.tokenizer = AutoTokenizer.from_pretrained(
                 SentimentSettings.MODEL_NAME,
                 token=SentimentSettings.HF_TOKEN,
                 trust_remote_code=True
             )
-            
+
             # Load model
             device = "cuda" if torch.cuda.is_available() else "cpu"
             self.model = AutoModelForCausalLM.from_pretrained(
@@ -62,13 +67,13 @@ class SentimentService(BaseService):
                 device_map=device,
                 torch_dtype=torch.float16 if device == "cuda" else torch.float32
             )
-            
+
             self.model.eval()
             self.model_loaded = True
             self.logger.info(f"Qwen2 sentiment model loaded successfully on {device}")
-            
+
             return True
-            
+
         except Exception as e:
             self.logger.error(f"Failed to load Qwen2 model: {e}")
             raise SentimentAnalysisError(f"Model initialization failed: {e}")

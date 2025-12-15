@@ -34,16 +34,18 @@ class EmbeddingService(BaseService):
             self.logger.warning("Continuing without embedding model")
     
     async def _load_model(self):
-        """Actual model loading logic"""
+        """
+        Actual model loading logic.
+
+        REFACTORED: Now uses ModelLoader for consistent environment setup.
+        """
         # Lazy import to avoid dependencies at module load time
         from sentence_transformers import SentenceTransformer
-        import os
-        
-        # Disable TensorFlow/Keras completely
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-        os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # CPU only
-        
+        from utils.model_loader import ModelLoader
+
+        # DRY: Use centralized environment setup
+        ModelLoader.setup_cpu_only_environment()
+
         # Load model with PyTorch backend
         self.model = SentenceTransformer(self.model_name, device='cpu')
     def embed_texts_batch(self, texts: List[str], batch_size: int = 32) -> Optional[List[List[float]]]:
